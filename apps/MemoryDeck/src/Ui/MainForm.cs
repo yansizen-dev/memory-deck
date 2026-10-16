@@ -46,11 +46,23 @@ public sealed class MainForm : Form
     };
 
     private readonly DataGridView _grid = new();
-    private readonly DataGridViewTextBoxColumn _colId = new() { HeaderText = "ID", Width = 96, ReadOnly = true };
-    private readonly DataGridViewTextBoxColumn _colCategory = new() { HeaderText = "类别", Width = 84, ReadOnly = true };
+    private readonly DataGridViewTextBoxColumn _colId = new() { HeaderText = "ID", Width = 92, ReadOnly = true };
+    private readonly DataGridViewTextBoxColumn _colCategory = new() { HeaderText = "类别", Width = 96, ReadOnly = true };
     private readonly DataGridViewTextBoxColumn _colContent = new() { HeaderText = "内容", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true };
-    private readonly DataGridViewTextBoxColumn _colSource = new() { HeaderText = "来源", Width = 130, ReadOnly = true };
-    private readonly DataGridViewTextBoxColumn _colTime = new() { HeaderText = "记录时间", Width = 130, ReadOnly = true };
+
+    /// <summary>表格的留白容器：给 DataGridView 一圈呼吸空间，避免内容贴着窗口边缘。</summary>
+    private readonly Panel _gridHost = new() { Dock = DockStyle.Fill, Padding = new Padding(1, 0, 1, 0) };
+
+    /// <summary>右键菜单：来源与记录时间等细节不再常显在列里，改从这里按需查看。</summary>
+    private readonly ContextMenuStrip _gridMenu = new();
+    private readonly ToolStripMenuItem _miShowDetail = new("查看完整信息…");
+    private readonly ToolStripMenuItem _miCopyContent = new("复制内容");
+    private readonly ToolStripMenuItem _miCopyRow = new("复制整条（制表符分隔）");
+    private readonly ToolStripMenuItem _miEditHere = new("编辑此条");
+    private readonly ToolStripMenuItem _miDeleteHere = new("删除此条");
+
+    /// <summary>详情区可折叠，表格为空时自动收起，把空间还给列表。</summary>
+    private readonly ToolStripMenuItem _miToggleEditor = new("收起/展开详情区");
 
     private readonly Panel _editor = new() { Dock = DockStyle.Fill, Padding = new Padding(12, 8, 12, 10) };
     private readonly Label _lblMode = new() { AutoSize = true, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold) };
@@ -156,7 +168,7 @@ public sealed class MainForm : Form
         // ---- 顶部工具条
         _txtSearch.PlaceholderText = "搜索 ID / 类别 / 内容 / 来源";
         _txtSearch.TextChanged += (_, _) => ApplyFilter();
-        _cboCategory.SelectedIndexChanged += (_, _) => ApplyFilter();
+        _cboCategory.SelectedIndexChanged += (_, _) => { if (!_suppressEvents) ApplyFilter(); };
         _btnClearSearch.Click += (_, _) => { _txtSearch.Clear(); _cboCategory.SelectedIndex = 0; };
 
         var flow = new FlowLayoutPanel
@@ -177,6 +189,9 @@ public sealed class MainForm : Form
         _topPanel.Controls.Add(flow);
 
         // ---- 表格
+        // 只常显三列：ID / 类别 / 内容。
+        // 来源与记录时间移出列，改从右键菜单「查看完整信息」按需看——
+        // 这两项日常扫视用不到，却各占一百多像素，是密度和观感的主要来源。
         _grid.Dock = DockStyle.Fill;
         _grid.AllowUserToAddRows = false;
         _grid.AllowUserToDeleteRows = false;
@@ -187,17 +202,35 @@ public sealed class MainForm : Form
         _grid.RowHeadersVisible = false;
         _grid.BackgroundColor = Color.White;
         _grid.BorderStyle = BorderStyle.None;
+        _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        _grid.GridColor = Color.FromArgb(238, 240, 243);
         _grid.EnableHeadersVisualStyles = false;
+        _grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+        _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(247, 248, 250);
+        _grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(90, 96, 105);
+        _grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(247, 248, 250);
+        _grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.FromArgb(90, 96, 105);
         _grid.ColumnHeadersDefaultCellStyle.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+        _grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
         _grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-        _grid.ColumnHeadersHeight = 30;
-        _grid.RowTemplate.Height = 26;
-        _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 251);
+        _grid.ColumnHeadersHeight = 34;
+        _grid.RowTemplate.Height = 32;
+        _grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
+        _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(226, 238, 254);
+        _grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(20, 24, 30);
+        _grid.DefaultCellStyle.ForeColor = Color.FromArgb(32, 36, 42);
+        // 用「选中高亮」代替斑马纹：交替底色在浅色主题里反而更显杂
+        _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.White;
         _grid.AutoGenerateColumns = false;
-        _grid.Columns.AddRange(_colId, _colCategory, _colContent, _colSource, _colTime);
+        _grid.Columns.AddRange(_colId, _colCategory, _colContent);
         _grid.SelectionChanged += (_, _) => RunGuarded("表格选中变化", OnGridSelectionChanged);
         _grid.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) BeginEditSelected(); };
         _grid.KeyDown += Grid_KeyDown;
+        _grid.CellMouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0) return;
+            if (e.RowIndex < _grid.Rows.Count) _grid.Rows[e.RowIndex].Selected = true;
+        };
         _grid.CellToolTipTextNeeded += (_, e) =>
         {
             e.ToolTipText = "";
@@ -206,10 +239,14 @@ public sealed class MainForm : Form
             e.ToolTipText = _view[e.RowIndex].Content;
         };
 
+        BuildGridMenu();
+        _grid.ContextMenuStrip = _gridMenu;
+        _gridHost.Controls.Add(_grid);
+
         // ---- 编辑区
         BuildEditor();
 
-        _split.Panel1.Controls.Add(_grid);
+        _split.Panel1.Controls.Add(_gridHost);
         _split.Panel2.Controls.Add(_editor);
 
         // 面板最小尺寸必须用「安全范围内」的值：
@@ -372,6 +409,14 @@ public sealed class MainForm : Form
 
         UpdateStatus();
 
+        // 类别下拉重建时会重写编辑区文本，这里按当前选中项重新灌一次，保证显示与选中一致
+        var current = CurrentSelectedEntry();
+        if (current is not null)
+        {
+            PopulateEditor(current);
+            SetEditorMode(EditorMode.View);
+        }
+
         if (_snapshot.Warnings.Count > 0)
             SetStatus("读取告警：" + string.Join("；", _snapshot.Warnings), warning: true);
     }
@@ -379,7 +424,7 @@ public sealed class MainForm : Form
     private void ApplyFilter()
     {
         var query = _txtSearch.Text.Trim();
-        var category = _cboCategory.SelectedItem as string;
+        var category = (_cboCategory.SelectedItem as CategoryChoice)?.Name;
 
         IEnumerable<MemoryEntry> items = _snapshot.Entries;
         if (!string.IsNullOrEmpty(query))
@@ -400,7 +445,8 @@ public sealed class MainForm : Form
             _grid.Rows.Clear();
             foreach (var entry in _view)
             {
-                var index = _grid.Rows.Add(entry.Id, entry.Category, entry.Content, entry.Source, entry.Time);
+                // 只有三列：来源与记录时间见右键菜单「查看完整信息」
+                var index = _grid.Rows.Add(entry.Id, entry.Category, entry.Content);
                 _grid.Rows[index].Tag = entry.Id;
             }
 
@@ -416,39 +462,94 @@ public sealed class MainForm : Form
         _lblCount.Text = $"筛选 {_view.Count} 条{suffix}";
         _statusCount.Text = $"{_view.Count} / {_snapshot.Entries.Count} 条";
 
+        // 没有条目时自动收起详情区，把空间让给列表
+        if (_view.Count == 0 && _split.Panel2Collapsed == false) SetEditorCollapsed(true);
+
         if (_grid.SelectedRows.Count > 0) OnGridSelectionChanged();
     }
 
-    private const string FilterAllLabel = "全部";
+    private const string FilterAllLabel = CategoryCatalog.AllLabel;
 
+    /// <summary>
+    /// 重建筛选下拉：预设类别在前，数据里出现过的额外类别在后。
+    /// 这样即使一条记忆都没有，下拉里也始终有可选项。
+    /// </summary>
     private void RefreshCategoryFilter()
     {
-        var previous = _cboCategory.SelectedItem as string;
-        var categories = _snapshot.Entries
+        var previous = (_cboCategory.SelectedItem as CategoryChoice)?.Name;
+
+        var existing = _snapshot.Entries
             .Select(e => e.Category)
             .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(c => c, StringComparer.Ordinal)
             .ToList();
+
+        var merged = CategoryCatalog.MergeWith(existing);
+        var usedNames = new HashSet<string>(
+            existing.Select(c => c.Trim()),
+            StringComparer.OrdinalIgnoreCase);
 
         _suppressEvents = true;
         try
         {
             _cboCategory.Items.Clear();
-            _cboCategory.Items.Add(FilterAllLabel);
-            foreach (var category in categories) _cboCategory.Items.Add(category);
-            var index = previous is null ? 0 : _cboCategory.Items.IndexOf(previous);
-            _cboCategory.SelectedIndex = index >= 0 ? index : 0;
+            foreach (var name in merged)
+            {
+                // 给在用的类别标一个计数，一眼能看出数据分布
+                var label = usedNames.Contains(name)
+                    ? $"{name}（{existing.Count(c => string.Equals(c.Trim(), name, StringComparison.OrdinalIgnoreCase))}）"
+                    : name;
+                _cboCategory.Items.Add(new CategoryChoice(name, label));
+            }
 
-            var editText = _cboEditCategory.Text;
-            _cboEditCategory.Items.Clear();
-            foreach (var category in categories) _cboEditCategory.Items.Add(category);
-            _cboEditCategory.Text = editText;
+            if (_cboCategory.Items.Count > 0) _cboCategory.Items.Insert(0, CategoryChoice.All);
+
+            var restoreIndex = 0;
+            if (previous is not null)
+            {
+                for (var i = 0; i < _cboCategory.Items.Count; i++)
+                {
+                    if (_cboCategory.Items[i] is CategoryChoice choice && choice.Name == previous)
+                    {
+                        restoreIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            _cboCategory.SelectedIndex = restoreIndex;
         }
         finally
         {
             _suppressEvents = false;
         }
+
+        RefreshEditCategoryItems(existing);
+    }
+
+    private void OnFilterCategoryChanged(object? sender, EventArgs e) => ApplyFilter();
+
+    /// <summary>编辑区的类别下拉：预设 + 已有，且允许自由输入新类别。</summary>
+    private void RefreshEditCategoryItems(IEnumerable<string> existing)
+    {
+        var typed = _cboEditCategory.Text;
+
+        _cboEditCategory.Items.Clear();
+        foreach (var name in CategoryCatalog.MergeWith(existing))
+        {
+            var description = CategoryCatalog.DescribeOf(name);
+            _cboEditCategory.Items.Add(description.Length == 0 ? name : $"{name} — {description}");
+        }
+
+        // 下拉项带了说明文字，重新选中时必须还原成纯类别名
+        _cboEditCategory.Text = typed;
+    }
+
+    /// <summary>筛选下拉里的一个选项：显示文本可以带计数，实际值始终是纯类别名。</summary>
+    private sealed record CategoryChoice(string Name, string Label)
+    {
+        public static readonly CategoryChoice All = new(CategoryCatalog.AllLabel, CategoryCatalog.AllLabel);
+
+        public override string ToString() => Label;
     }
 
     private void UpdateStatus()
@@ -517,6 +618,12 @@ public sealed class MainForm : Form
 
     /// <summary>供自检使用：读取当前快照条目数。</summary>
     internal int EntryCountForTest => _snapshot.Entries.Count;
+
+    /// <summary>供自检使用：读取筛选下拉的选项数量（含「全部」）。</summary>
+    internal int FilterCategoryCountForTest => _cboCategory.Items.Count;
+
+    /// <summary>供自检使用：读取编辑区类别下拉还原出的纯类别名。</summary>
+    internal string EditorCategoryNameForTest => ParseCategoryName(_cboEditCategory.Text);
 
     private void RunGuarded(string what, Action body)
     {
@@ -588,7 +695,7 @@ public sealed class MainForm : Form
         PopulateEditor(new MemoryEntry
         {
             Id = nextId,
-            Category = _cboEditCategory.Text.Trim(),
+            Category = ParseCategoryName(_cboEditCategory.Text),
             Content = "",
             Source = Environment.UserName,
             Time = "",
@@ -610,6 +717,20 @@ public sealed class MainForm : Form
         _txtContent.SelectionStart = _txtContent.TextLength;
     }
 
+    /// <summary>
+    /// 从类别框的文本里取出纯类别名。
+    /// 下拉项形如「身份 — 我是谁：背景、角色、当前状态」，
+    /// 用户手输时则是纯名字，两种情况都要正确还原。
+    /// </summary>
+    private static string ParseCategoryName(string? text)
+    {
+        var raw = (text ?? "").Trim();
+        if (raw.Length == 0) return "";
+
+        var separator = raw.IndexOf(" — ", StringComparison.Ordinal);
+        return separator > 0 ? raw[..separator].Trim() : raw;
+    }
+
     private void PopulateEditor(MemoryEntry entry)
     {
         _suppressEvents = true;
@@ -626,9 +747,111 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// 收起 / 展开详情区。收起后表格独占整个高度，
+    /// 解决「两条数据时中间一大片空白」的观感问题。
+    /// </summary>
+    private void SetEditorCollapsed(bool collapsed)
+    {
+        if (_split.Panel2Collapsed == collapsed) return;
+
+        try
+        {
+            _split.Panel2Collapsed = collapsed;
+        }
+        catch (InvalidOperationException)
+        {
+            // 极端尺寸下放弃折叠，保持现状
+            return;
+        }
+
+        _statusLeft.Text = collapsed ? "详情区已收起（Ctrl+D 或右键菜单可展开）" : "";
+        _statusLeft.ForeColor = SystemColors.ControlText;
+    }
+
+    private void BuildGridMenu()
+    {
+        _miShowDetail.Click += (_, _) => ShowDetailDialog();
+        _miCopyContent.Click += (_, _) =>
+        {
+            var entry = CurrentSelectedEntry();
+            if (entry is null) return;
+            CopyToClipboard(entry.Content);
+        };
+        _miCopyRow.Click += (_, _) =>
+        {
+            var entry = CurrentSelectedEntry();
+            if (entry is null) return;
+            CopyToClipboard($"{entry.Id}\t{entry.Category}\t{entry.Content}\t{entry.Source}\t{entry.Time}");
+        };
+        _miEditHere.Click += (_, _) => BeginEditSelected();
+        _miDeleteHere.Click += (_, _) => DeleteSelected();
+        _miToggleEditor.Click += (_, _) => SetEditorCollapsed(!_split.Panel2Collapsed);
+
+        _gridMenu.Items.AddRange(new ToolStripItem[]
+        {
+            _miShowDetail,
+            new ToolStripSeparator(),
+            _miCopyContent,
+            _miCopyRow,
+            new ToolStripSeparator(),
+            _miEditHere,
+            _miDeleteHere,
+            new ToolStripSeparator(),
+            _miToggleEditor,
+        });
+
+        _gridMenu.Opening += (_, _) =>
+        {
+            var hasSelection = CurrentSelectedEntry() is not null;
+            _miShowDetail.Enabled = hasSelection;
+            _miCopyContent.Enabled = hasSelection;
+            _miCopyRow.Enabled = hasSelection;
+            _miEditHere.Enabled = hasSelection;
+            _miDeleteHere.Enabled = hasSelection;
+        };
+    }
+
+    private void CopyToClipboard(string text)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            Clipboard.SetText(text);
+            SetStatus("已复制到剪贴板。");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("复制失败：" + ex.Message, warning: true);
+        }
+    }
+
+    /// <summary>
+    /// 完整信息弹窗。来源与记录时间从表格列里移出来后，在这里按需查看。
+    /// </summary>
+    private void ShowDetailDialog()
+    {
+        var entry = CurrentSelectedEntry();
+        if (entry is null) return;
+
+        var text =
+            $"ID：        {entry.Id}{Environment.NewLine}" +
+            $"类别：      {entry.Category}{Environment.NewLine}" +
+            $"来源：      {entry.Source}{Environment.NewLine}" +
+            $"记录时间：  {entry.Time}{Environment.NewLine}" +
+            $"{new string('─', 46)}{Environment.NewLine}" +
+            $"{entry.Content}";
+
+        MessageBox.Show(this, text, "记忆详情 — " + entry.Id, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
     private void SetEditorMode(EditorMode mode)
     {
         _mode = mode;
+
+        // 要编辑或查看就必须把详情区展开（用户可能之前手动收起过）
+        if (mode is EditorMode.View or EditorMode.New or EditorMode.Edit)
+            SetEditorCollapsed(false);
 
         switch (mode)
         {
@@ -692,7 +915,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        var category = _cboEditCategory.Text.Trim();
+        var category = ParseCategoryName(_cboEditCategory.Text);
         var content = _txtContent.Text.Trim();
         var source = _txtSource.Text.Trim();
 
@@ -898,10 +1121,18 @@ public sealed class MainForm : Form
               Ctrl+E        编辑选中条目
               Ctrl+S        保存当前编辑
               Ctrl+F        跳到搜索框
+              Ctrl+D        收起 / 展开下方详情区
               Delete        删除选中条目
               F5            重新加载文件
               双击表格行     编辑该条目
               Ctrl+Enter    在内容框里直接保存
+              右键表格行     查看完整信息（来源 / 记录时间）、复制、编辑、删除
+
+            关于界面
+              表格只常显 ID / 类别 / 内容三列。
+              来源与记录时间移到右键菜单「查看完整信息」，让列表更清爽。
+              类别下拉是「建议」不是「限制」：预设类别之外可以自由输入新类别。
+              表格为空时详情区会自动收起，把空间让给列表。
 
             同步行为
               程序每 1.5 秒检查一次文件指纹。你在编辑器或 AI 侧改过 MEMORY.md / AGENTS.md 后，
@@ -910,7 +1141,9 @@ public sealed class MainForm : Form
             命令行
               MemoryDeck.exe --data <目录>     指定数据目录
               MemoryDeck.exe --open            打开数据目录
-              MemoryDeck.exe --selftest        运行数据层自检
+              MemoryDeck.exe --selftest        运行数据层与界面自检
+              MemoryDeck.exe --repair          规范化重写并校验数据无损
+              MemoryDeck.exe --env             打印显示器 / DPI / 窗口尺寸诊断
             """;
 
         MessageBox.Show(text, "使用说明", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -941,6 +1174,7 @@ public sealed class MainForm : Form
         else if (e.Control && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; _txtSearch.Focus(); _txtSearch.SelectAll(); }
         else if (e.Control && e.KeyCode == Keys.S) { e.SuppressKeyPress = true; SaveEditor(); }
         else if (e.Control && e.KeyCode == Keys.E) { e.SuppressKeyPress = true; BeginEditSelected(); }
+        else if (e.Control && e.KeyCode == Keys.D) { e.SuppressKeyPress = true; SetEditorCollapsed(!_split.Panel2Collapsed); }
         else if (e.KeyCode == Keys.F5) { e.SuppressKeyPress = true; ReloadAll(selectFirst: true); }
     }
 

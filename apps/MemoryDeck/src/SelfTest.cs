@@ -47,6 +47,7 @@ internal static class SelfTest
             Test11RealWorkspaceReadOnly();
             Test12UiSmoke(sandbox);
             Test13TailPreservation(sandbox);
+            Test14CategoryCatalog(sandbox);
         }
         catch (Exception ex)
         {
@@ -552,6 +553,66 @@ internal static class SelfTest
 
         form.Close();
         _ = newId;
+    }
+
+    /// <summary>
+    /// 类别目录：预设类别必须满足「建议而非限制」。
+    /// 关键行为：空数据时下拉也有选项；数据里的自定义类别不能被预设冲掉。
+    /// </summary>
+    private static void Test14CategoryCatalog(string root)
+    {
+        // ① 预设本身要够用，且不含空项与重复项
+        Check("14 预设类别不少于 6 个", CategoryCatalog.Presets.Count >= 6,
+            $"实际 {CategoryCatalog.Presets.Count} 个");
+        Check("14 预设类别无空名", CategoryCatalog.Presets.All(p => p.Name.Trim().Length > 0));
+        Check("14 预设类别无重复",
+            CategoryCatalog.PresetNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() == CategoryCatalog.Presets.Count);
+        Check("14 每个预设都有说明", CategoryCatalog.Presets.All(p => p.Description.Trim().Length > 0));
+
+        // 约定里写明的 6 个基础类别必须在
+        foreach (var required in new[] { "身份", "偏好", "项目", "技术栈", "目标", "约束" })
+        {
+            Check($"14 预设包含「{required}」", CategoryCatalog.PresetNames.Contains(required));
+        }
+
+        // ② 空数据时，下拉仍然能拿到完整的预设列表
+        var empty = CategoryCatalog.MergeWith(Array.Empty<string>());
+        Check("14 无数据时下拉仍有预设项", empty.Count == CategoryCatalog.Presets.Count, $"实际 {empty.Count} 项");
+
+        // ③ 数据里出现过的自定义类别不能被丢掉
+        var merged = CategoryCatalog.MergeWith(new[] { "身份", "自定义分类", "  ", "另一类", "身份" });
+        Check("14 保留自定义类别", merged.Contains("自定义分类") && merged.Contains("另一类"),
+            string.Join(" / ", merged));
+        Check("14 预设在前且不重复",
+            merged.Count == CategoryCatalog.Presets.Count + 2
+            && merged.Take(CategoryCatalog.Presets.Count).SequenceEqual(CategoryCatalog.PresetNames),
+            $"共 {merged.Count} 项：" + string.Join(" / ", merged));
+        Check("14 忽略空白类别", merged.All(m => m.Trim().Length > 0));
+
+        // ④ 类别说明能查到，且未知类别不会瞎编说明
+        Check("14 预设类别有说明可查", CategoryCatalog.DescribeOf("身份").Length > 0);
+        Check("14 未知类别说明为空", CategoryCatalog.DescribeOf("不存在的类别") == "");
+
+        // ⑤ 界面层：下拉应构造成功且含预设
+        try
+        {
+            var dir = Fresh(root, "14-ui-category");
+            var config = new StorageConfig { DataDirectory = dir };
+            var repo = new MemoryRepository(config);
+            repo.Add("自定义分类", "触发自定义类别进入下拉", "自检", out _);
+
+            using var form = new MemoryDeck.Ui.MainForm(config);
+            ActivateForm(form);
+
+            Check("14 界面加载后表格行数正确", form.GridRowCountForTest == 1, $"实际 {form.GridRowCountForTest}");
+            Check("14 界面类别下拉含预设项", form.FilterCategoryCountForTest >= CategoryCatalog.Presets.Count,
+                $"实际 {form.FilterCategoryCountForTest} 项（含「全部」）");
+            form.Close();
+        }
+        catch (Exception ex)
+        {
+            Check("14 界面层类别下拉", false, ex.GetType().Name + ": " + ex.Message);
+        }
     }
 
     private static void Test11RealWorkspaceReadOnly()

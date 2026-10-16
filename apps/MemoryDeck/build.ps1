@@ -101,13 +101,39 @@ if ($TestOnly) {
 
 if (-not $SkipBuild) {
     Write-Step '发布（Release / win-x64 / 单文件）'
+
+    # 正在运行的实例会锁住 publish\MemoryDeck.exe，导致 GenerateBundle 报
+    # UnauthorizedAccessException。这里先清理，避免"编译成功但产物是旧的"这种假象。
+    $running = @(Get-Process -Name 'MemoryDeck' -ErrorAction SilentlyContinue)
+    if ($running.Count -gt 0) {
+        Write-Host "  检测到 $($running.Count) 个正在运行的 MemoryDeck，先关闭以免锁住输出文件" -ForegroundColor Yellow
+        foreach ($proc in $running) {
+            try {
+                Stop-Process -Id $proc.Id -Force -ErrorAction Stop
+                Wait-Process -Id $proc.Id -Timeout 10 -ErrorAction SilentlyContinue
+                Write-Host "    已关闭 PID $($proc.Id)"
+            }
+            catch {
+                Write-Host "    关闭 PID $($proc.Id) 失败：$($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+
     Push-Location $ProjectDir
     try {
+        # 注意：这里不要接管道。把输出接给 Select-Object / Select-String 会把
+        # 失败信息过滤掉，造成"看起来构建成功"的假象，而实际 $LASTEXITCODE 是 1。
         & dotnet publish $ProjectFile -c Release -r win-x64 --self-contained false -o $PublishDir --nologo -v minimal
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败（退出码 $LASTEXITCODE）" }
+        $publishExit = $LASTEXITCODE
     }
     finally {
         Pop-Location
+    }
+
+    if ($publishExit -ne 0) {
+        Write-Host "  发布失败（退出码 $publishExit），未更新产物。" -ForegroundColor Red
+        throw "dotnet publish 失败（退出码 $publishExit）"
     }
 
     Write-Host '  产物：' -NoNewline
