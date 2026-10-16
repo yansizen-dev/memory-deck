@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>MemoryDeck</RootNamespace>
+    <AssemblyName>MemoryDeck</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Version>1.0.0</Version>
+    <Product>MemoryDeck</Product>
+    <Company>YG</Company>
+    <Description>本地记忆卡片管理器：以 Markdown 为唯一数据源，与 AI 工作区长期记忆双向同步。</Description>
+
+    <!-- 离线优先：只用 SDK 自带引用，不引任何第三方包 -->
+    <EnableDefaultItems>true</EnableDefaultItems>
+    <!-- 本机这台机器的 NuGet.Config 指向了不存在的回退目录，项目级清空以免构建失败 -->
+    <RestoreFallbackFolders></RestoreFallbackFolders>
+    <RestoreAdditionalProjectFallbackFolders></RestoreAdditionalProjectFallbackFolders>
+  </PropertyGroup>
+
+  <!-- 发布：单文件 exe，框架依赖（机器已装 .NET 10 桌面运行时） -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <DebugType>embedded</DebugType>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <!-- 不要开 InvariantGlobalization：它会把 zh-CN 一并废掉，
+         new CultureInfo("zh-CN") 会抛 CultureNotFoundException。 -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,27 @@
+# ---- .NET 构建产物 ----
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# ---- 本项目特有：构建出来的可执行文件不入库 ----
+# publish/ 是用 build.ps1 生成的产物（单文件 exe + 配置），源码才是唯一真源。
+# 想留发布包就把它注释掉。
+apps/MemoryDeck/publish/
+
+# ---- 运行期数据 / 自动备份 ----
+# .memory-deck/backups 是程序每次写入前自动复制的备份，属于运行期数据。
+.memory-deck/
+
+# ---- 临时与日志 ----
+*.log
+*.tmp
+*.bak
+*.tmp-*
+
+# ---- 编辑器 / 系统 ----
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

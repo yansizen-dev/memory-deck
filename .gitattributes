@@ -1,0 +1,30 @@
+# 统一换行符策略，避免跨平台协作时产生整文件 diff 噪音
+
+# 默认：入库统一用 LF，检出时按平台
+* text=auto eol=lf
+
+# Windows 脚本必须带 CRLF，否则部分环境执行异常
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.pdb binary
+*.zip binary
+
+# Markdown 保持 LF
+*.md text eol=lf
+
+# C# 源码保持 LF
+*.cs text eol=lf
+
+# 工程文件
+*.csproj text eol=crlf
+*.sln text eol=crlf
