@@ -848,7 +848,16 @@ internal static class SelfTest
         var snapshot = repo.Load();
         Check("11 实际 MEMORY.md 可读", snapshot.MemoryExists);
         Check("11 实际文件解析无告警", snapshot.Warnings.Count == 0, string.Join(" / ", snapshot.Warnings));
-        Check("11 实际条目数 >= 1", snapshot.Entries.Count >= 1, $"实际 {snapshot.Entries.Count}");
+
+        // 刻意不断言「条目数 >= 1」：清空记忆是合法状态，
+        // 把作者恰好有数据当成通过条件，等于让自检依赖环境，是坏味道。
+        // 这里只确认「解析结果与文件里的行数一致」，有多少条都算通过。
+        var actualRows = MemoryRepository.SplitLines(Utf8.ReadAllText(config.MemoryPath))
+            .Count(line => line.TrimStart().StartsWith("| M-", StringComparison.Ordinal));
+        Check("11 解析条数与文件实际行数一致", snapshot.Entries.Count == actualRows,
+            $"解析 {snapshot.Entries.Count} 行 / 文件 {actualRows} 行");
+
+        _out.WriteLine($"     实际数据目录现有 {snapshot.Entries.Count} 条记忆");
 
         foreach (var entry in snapshot.Entries.Take(5))
             _out.WriteLine($"     · {entry.Id} ｜ {entry.Category} ｜ {entry.Content}");

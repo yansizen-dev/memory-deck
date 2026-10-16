@@ -13,7 +13,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <!-- 图标：嵌进 exe 后，资源管理器 / 任务栏 / 标题栏都会用它 -->
     <ApplicationIcon>tools\icon\icon.ico</ApplicationIcon>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Product>MemoryDeck</Product>
     <Company>YG</Company>
     <Description>本地记忆卡片管理器：以 Markdown 为唯一数据源，与 AI 工作区长期记忆双向同步。</Description>

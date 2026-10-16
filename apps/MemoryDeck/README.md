@@ -16,9 +16,9 @@
 | `apps\MemoryDeck\publish\memorydeck.config.json` | 数据目录配置 |
 | `apps\MemoryDeck\src\` | 全部 C# 源码 |
 | `apps\MemoryDeck\build.ps1` | 一键重新编译 / 自检 / 发布 |
-| `F:\DSH\仓库\MEMORY.md` | **数据源**：全部记忆条目 |
-| `F:\DSH\仓库\AGENTS.md` | AI 每轮自动加载的摘要（程序自动维护标记区） |
-| `F:\DSH\仓库\.memory-deck\backups\` | 每次写入前的自动备份，最多保留 30 份 |
+| `<数据目录>\MEMORY.md` | **数据源**：全部记忆条目 |
+| `<数据目录>\AGENTS.md` | AI 每轮自动加载的摘要（程序自动维护标记区） |
+| `<数据目录>\.memory-deck\backups\` | 每次写入前的自动备份，最多保留 30 份 |
 
 ## 数据目录是怎么定的
 
@@ -30,7 +30,7 @@
 4. 从 exe 所在路径向上回溯，找带 `MEMORY.md` / `AGENTS.md` / `apps` 的仓库根
 5. 当前工作目录
 
-本机安装时设了 `MEMORYDECK_DATA = F:\DSH\仓库`，所以程序直接读写仓库根目录的两个 Markdown 文件。
+设置环境变量 `MEMORYDECK_DATA` 指向你的数据目录后，程序就直接读写那里的两个 Markdown 文件。
 换目录：程序里「数据 → 数据目录」，或改环境变量，或改配置文件。
 
 ## 常用操作
@@ -112,7 +112,7 @@ MemoryDeck.exe --help               # 帮助
 `acceptance.ps1` 用来在手动点界面之前、之后对账：
 
 ```powershell
-cd F:\DSH\仓库\apps\MemoryDeck
+cd <仓库路径>\apps\MemoryDeck
 
 .\acceptance.ps1              # 完整检查：安装状态、数据文件、自检、当前数据
 .\acceptance.ps1 -Baseline    # 记录当前数据状态为基线
@@ -139,7 +139,7 @@ cd F:\DSH\仓库\apps\MemoryDeck
 ## 重新编译
 
 ```powershell
-cd F:\DSH\仓库\apps\MemoryDeck
+cd <仓库路径>\apps\MemoryDeck
 .\build.ps1              # 编译 + 自检 + 发布
 .\build.ps1 -TestOnly    # 只跑自检
 .\build.ps1 -Install     # 发布后重建桌面快捷方式、设置环境变量

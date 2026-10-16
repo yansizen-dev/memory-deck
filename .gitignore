@@ -10,6 +10,10 @@ obj/
 # 想留发布包就把它注释掉。
 apps/MemoryDeck/publish/
 
+# ---- 打包产物 ----
+# dist/ 是 package.ps1 生成的发布包，随时可以用脚本重出，不入库。
+dist/
+
 # ---- 运行期数据 / 自动备份 ----
 # .memory-deck/backups 是程序每次写入前自动复制的备份，属于运行期数据。
 .memory-deck/
@@ -25,3 +29,6 @@ apps/MemoryDeck/publish/
 *.swp
 Thumbs.db
 desktop.ini
+
+# ---- 本地工具生成物（不属于产品） ----
+docs/agents/
