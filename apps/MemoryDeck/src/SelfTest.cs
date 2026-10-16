@@ -49,6 +49,7 @@ internal static class SelfTest
             Test13TailPreservation(sandbox);
             Test14CategoryCatalog(sandbox);
             Test15OptionalColumns(sandbox);
+            Test16Exporter(sandbox);
         }
         catch (Exception ex)
         {
@@ -699,6 +700,137 @@ internal static class SelfTest
 
         Check("15 自定义列表头保留", afterD.Contains("| 优先级 |"), afterD);
         Check("15 自定义列的值保留", afterD.Contains("| 高 |"), afterD);
+    }
+
+    /// <summary>
+    /// 导出给网页版 AI：产物必须是「能直接粘进对话框」的纯文本。
+    /// 重点守住的是格式——粘过去变成一堆竖线的 Markdown 表格就失去意义了。
+    /// </summary>
+    private static void Test16Exporter(string root)
+    {
+        var entries = new List<MemoryEntry>
+        {
+            new() { Id = "M-0001", Category = "身份", Content = "用户是软件工程专业学生", Time = "2026-02-14" },
+            new() { Id = "M-0002", Category = "项目", Content = "在做 MemoryDeck", Time = "2026-10-16" },
+            new() { Id = "M-0003", Category = "身份", Content = "喜欢直接给结论", Time = "2026-10-16" },
+            new() { Id = "M-0004", Category = "自定义类", Content = "自定义类别的条目", Time = "2026-10-16" },
+        };
+
+        const string agents = """
+            # AGENTS.md — 工作区长期记忆
+
+            <!-- MEMORY-DECK:SUMMARY:BEGIN -->
+
+            | ID | 类别 | 内容 | 记录时间 |
+            | --- | --- | --- | --- |
+            | M-0001 | 身份 | 摘要里的这条不该出现在导出里 | 2026-02-14 |
+
+            <!-- MEMORY-DECK:SUMMARY:END -->
+
+            ### 协作偏好（人工维护区）
+            - 默认使用简体中文。
+            - 回答要具体可操作。
+            """;
+
+        var bundle = MemoryExporter.Build(entries, agents);
+
+        // ① 格式：不能有 Markdown 表格
+        Check("16 导出不含 Markdown 表格分隔行", !bundle.Text.Contains("| --- |"), bundle.Text);
+        Check("16 导出不含竖线表格行", !bundle.Text.Contains("| M-0001 |"), bundle.Text);
+        Check("16 导出不含标记注释", !bundle.Text.Contains("MEMORY-DECK"), bundle.Text);
+
+        // ② 摘要区的条目不能混进来（那是给 AI 看的摘要，不是事实来源）
+        Check("16 摘要区内容未混入导出", !bundle.Text.Contains("不该出现在导出里"), bundle.Text);
+
+        // ③ 内容：条目按类别分组，类别名带方括号
+        Check("16 含类别分组标题", bundle.Text.Contains("【身份】") && bundle.Text.Contains("【项目】"), bundle.Text);
+        Check("16 含全部条目的内容",
+            bundle.Text.Contains("软件工程专业学生") && bundle.Text.Contains("在做 MemoryDeck")
+            && bundle.Text.Contains("喜欢直接给结论") && bundle.Text.Contains("自定义类别的条目"));
+        Check("16 每条前缀为间隔号", bundle.Text.Contains("· 用户是软件工程专业学生"), bundle.Text);
+
+        // ④ 预设类别排在自定义类别之前
+        var indexIdentity = bundle.Text.IndexOf("【身份】", StringComparison.Ordinal);
+        var indexCustom = bundle.Text.IndexOf("【自定义类】", StringComparison.Ordinal);
+        Check("16 预设类别排在前", indexIdentity >= 0 && indexCustom > indexIdentity,
+            $"身份@{indexIdentity} 自定义@{indexCustom}");
+
+        // ⑤ 说明头与协作偏好
+        Check("16 含说明头", bundle.Text.Contains("希望你在后续对话中记住"), bundle.Text);
+        Check("16 含协作偏好", bundle.Text.Contains("默认使用简体中文") && bundle.Text.Contains("回答要具体可操作"), bundle.Text);
+        Check("16 偏好里不含 Markdown 标题", !bundle.Text.Contains("### 协作偏好"), bundle.Text);
+
+        // ⑥ 默认不导出记录时间
+        Check("16 默认不含记录时间", !bundle.Text.Contains("2026-02-14"), bundle.Text);
+
+        var withTime = MemoryExporter.Build(entries, agents, new MemoryExporter.Options { IncludeTime = true });
+        Check("16 开启后含记录时间", withTime.Text.Contains("2026-02-14"), withTime.Text);
+
+        // ⑦ 关掉选项时不出现
+        var bare = MemoryExporter.Build(entries, agents, new MemoryExporter.Options
+        {
+            IncludeHeader = false,
+            IncludePreferences = false,
+        });
+        Check("16 关掉说明头后不含说明头", !bare.Text.Contains("希望你在后续对话中记住"), bare.Text);
+        Check("16 关掉偏好后不含偏好", !bare.Text.Contains("默认使用简体中文"), bare.Text);
+        Check("16 关掉说明头后仍含条目", bare.Text.Contains("软件工程专业学生"), bare.Text);
+
+        // ⑧ 按类别筛选
+        var onlyIdentity = MemoryExporter.Build(entries, agents, new MemoryExporter.Options
+        {
+            OnlyCategories = new[] { "身份" },
+        });
+        Check("16 按类别筛选只留命中项",
+            onlyIdentity.EntryCount == 2 && onlyIdentity.Text.Contains("软件工程专业学生")
+            && !onlyIdentity.Text.Contains("在做 MemoryDeck"),
+            onlyIdentity.Text);
+        Check("16 筛选取并集", MemoryExporter.Build(entries, agents, new MemoryExporter.Options
+        {
+            OnlyCategories = new[] { "身份", "项目" },
+        }).EntryCount == 3);
+
+        // ⑨ 空输入不能崩
+        var empty = MemoryExporter.Build(Array.Empty<MemoryEntry>(), null);
+        Check("16 空记忆可导出", empty.Text.Length > 0 && empty.EntryCount == 0, empty.Text);
+        Check("16 无 AGENTS.md 时不崩", !empty.Text.Contains("协作偏好"), empty.Text);
+
+        // ⑩ 统计信息合理
+        Check("16 条目数与类别数正确",
+            bundle.EntryCount == 4 && bundle.CategoryCount == 3,
+            $"条目 {bundle.EntryCount} 类别 {bundle.CategoryCount}");
+        Check("16 token 估算为正数", bundle.EstimatedTokens > 0, bundle.EstimatedTokens.ToString());
+        Check("16 体量描述可读", bundle.SizeSummary.Contains("字符") && bundle.SizeSummary.Contains("tokens"),
+            bundle.SizeSummary);
+
+        // ⑪ 多行内容被压平，避免破坏纯文本结构
+        var multi = MemoryExporter.Build(new[]
+        {
+            new MemoryEntry { Id = "M-0001", Category = "身份", Content = "第一行\n第二行\r\n第三行" },
+        }, null, new MemoryExporter.Options { IncludeHeader = false, IncludePreferences = false });
+        Check("16 多行内容被压成单行",
+            multi.Text.Contains("· 第一行 第二行 第三行") && multi.Text.Split('\n').Length <= 4,
+            multi.Text);
+
+        // ⑫ 界面层：导出对话框能否构造（不开窗）
+        try
+        {
+            var dir = Fresh(root, "16-ui-export");
+            var config = new StorageConfig { DataDirectory = dir };
+            var repo = new MemoryRepository(config);
+            repo.Add("身份", "界面导出用例", "", out _);
+
+            using var dialog = new MemoryDeck.Ui.ExportDialog(repo, repo.Load().Entries);
+            var handle = dialog.Handle;
+            dialog.CreateControl();
+            Application.DoEvents();
+            Check("16 导出对话框可构造", handle != IntPtr.Zero);
+            dialog.Close();
+        }
+        catch (Exception ex)
+        {
+            Check("16 导出对话框可构造", false, ex.GetType().Name + ": " + ex.Message);
+        }
     }
 
     private static void Test11RealWorkspaceReadOnly()

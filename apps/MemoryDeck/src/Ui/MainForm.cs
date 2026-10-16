@@ -63,6 +63,7 @@ public sealed class MainForm : Form
 
     /// <summary>详情区可折叠，表格为空时自动收起，把空间还给列表。</summary>
     private readonly ToolStripMenuItem _miToggleEditor = new("收起/展开详情区");
+    private readonly ToolStripMenuItem _miExport = new("导出给网页版 AI…\tCtrl+Shift+E");
 
     private readonly Panel _editor = new() { Dock = DockStyle.Fill, Padding = new Padding(12, 8, 12, 10) };
     private readonly Label _lblMode = new() { AutoSize = true, Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold) };
@@ -82,6 +83,9 @@ public sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer _watch = new() { Interval = 1500 };
 
     private enum EditorMode { None, View, New, Edit }
+
+    /// <summary>供自检 / 截图使用：加载完成后自动打开导出对话框。</summary>
+    internal bool AutoOpenExportOnLoad;
 
     public MainForm(StorageConfig config)
     {
@@ -118,6 +122,12 @@ public sealed class MainForm : Form
         }
 
         ReloadAll(selectFirst: true);
+
+        if (AutoOpenExportOnLoad)
+        {
+            // 延后一拍，等主窗口画完再弹，避免截图时抢焦点
+            BeginInvoke(() => RunGuarded("自动打开导出对话框", ShowExportDialog));
+        }
     }
 
     // ================================================================ 界面构建
@@ -288,6 +298,9 @@ public sealed class MainForm : Form
         var data = new ToolStripMenuItem("数据(&D)");
         _miDataDirectory.Click += (_, _) => ChangeDataDirectory();
         data.DropDownItems.Add(_miDataDirectory);
+        data.DropDownItems.Add(new ToolStripSeparator());
+        _miExport.Click += (_, _) => ShowExportDialog();
+        data.DropDownItems.Add(_miExport);
         data.DropDownItems.Add(new ToolStripSeparator());
         _miBackup.Click += (_, _) => DoBackup();
         _miOpenBackups.Click += (_, _) => OpenInExplorer(_config.AutoBackupDirectory);
@@ -823,6 +836,17 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>打开「导出给网页版 AI」对话框。</summary>
+    private void ShowExportDialog()
+    {
+        RunGuarded("导出对话框", () =>
+        {
+            using var dialog = new ExportDialog(_repo, _snapshot.Entries);
+            dialog.ShowDialog(this);
+            SetStatus("导出对话框已关闭。");
+        });
+    }
+
     /// <summary>
     /// 完整信息弹窗。来源与记录时间从表格列里移出来后，在这里按需查看。
     /// </summary>
@@ -1163,7 +1187,9 @@ public sealed class MainForm : Form
 
     private void MainForm_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Control && e.KeyCode == Keys.N) { e.SuppressKeyPress = true; BeginNew(); }
+        // Ctrl+Shift+E 必须排在 Ctrl+E 之前判断，否则会被 Ctrl+E 先吃掉
+        if (e.Control && e.Shift && e.KeyCode == Keys.E) { e.SuppressKeyPress = true; ShowExportDialog(); }
+        else if (e.Control && e.KeyCode == Keys.N) { e.SuppressKeyPress = true; BeginNew(); }
         else if (e.Control && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; _txtSearch.Focus(); _txtSearch.SelectAll(); }
         else if (e.Control && e.KeyCode == Keys.S) { e.SuppressKeyPress = true; SaveEditor(); }
         else if (e.Control && e.KeyCode == Keys.E) { e.SuppressKeyPress = true; BeginEditSelected(); }

@@ -39,6 +39,7 @@ MemoryDeck 把这个流程做成了图形界面：
 | **Markdown 即数据源** | 读写的就是你手写的那张表格。不用导入导出，随时手动改 |
 | **手写区域零侵入** | 表格**之前**的说明、**之后**的维护约定，程序一律原样保留 |
 | **AI 侧自动同步** | 每次写入后重建 `AGENTS.md` 摘要标记区，AI 下一轮就能读到 |
+| **一键导出给网页版 AI** | 生成可直接粘贴的纯文本块（不是 Markdown 表格），带体量估算 |
 | **克制的界面** | 表格只显 `ID / 类别 / 内容` 三列，来源与时间右键即看；为空时详情区自动收起 |
 | **可选列不丢数据** | 界面下线的字段（如来源）与用户自建的列，只要文件里还有，写回时原样保留 |
 | **类别可预设可自由** | 10 个预设类别（身份/偏好/项目/技术栈/目标/约束/技能/连接/资料/随手记），也可直接手输 |
@@ -97,12 +98,25 @@ cd apps\MemoryDeck
 MemoryDeck.exe                      # 启动图形界面
 MemoryDeck.exe --data <目录>         # 指定数据目录（含 MEMORY.md / AGENTS.md）
 MemoryDeck.exe --open               # 用资源管理器打开数据目录
-MemoryDeck.exe --selftest           # 数据层 + 界面自检（85 项），日志在 %TEMP%\MemoryDeck\
+MemoryDeck.exe --selftest           # 数据层 + 界面自检（140 项），日志在 %TEMP%\MemoryDeck\
 MemoryDeck.exe --selftest --verbose # 带每一项的 PASS 明细
 MemoryDeck.exe --repair             # 规范化重写 + 校验数据无损（写前自动备份）
 MemoryDeck.exe --env                # 打印显示器 / DPI / 窗口实测尺寸诊断信息
 MemoryDeck.exe --help               # 帮助
 ```
+
+### 导出给网页版 AI
+
+```powershell
+MemoryDeck.exe --export                     # 打到 stdout，可接管道
+MemoryDeck.exe --export -o 记忆.txt          # 写入文件（UTF-8 无 BOM）
+MemoryDeck.exe --export --with-time         # 带上记录时间
+MemoryDeck.exe --export --no-preferences    # 不带 AGENTS.md 里的协作偏好
+MemoryDeck.exe --export --no-header         # 不带说明头
+MemoryDeck.exe --export --category 身份 --category 项目   # 只导出指定类别
+```
+
+界面里对应 **数据(D) → 导出给网页版 AI…**（`Ctrl+Shift+E`）。
 
 ### 数据目录是怎么定的
 
@@ -220,7 +234,7 @@ MemoryDeck.exe --help               # 帮助
 
 ## 测试
 
-自检覆盖 **85 项**，分 13 组：
+覆盖 **140 项**，分 16 组：
 
 | 组 | 覆盖内容 |
 | --- | --- |
@@ -238,6 +252,7 @@ MemoryDeck.exe --help               # 帮助
 | 13 | **手写区保留**、连续写入不累积空行 |
 | 14 | **类别目录**：预设完备性、空数据仍有选项、自定义类别不被冲掉 |
 | 15 | **可选列保留**：已下线的来源列、用户自建的列，写回时数据不丢 |
+| 16 | **导出格式**：不含 Markdown 表格与标记注释、摘要不混入、类别分组与排序、选项开关、按类别筛选、空输入、多行压平 |
 
 其中 `Test12` 的"外部变更后重载"覆盖 5 个边界：
 追加一行 / 删到一行不剩 / 再加回来 / 文件被外部删除 / 文件被写坏。
