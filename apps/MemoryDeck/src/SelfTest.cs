@@ -48,6 +48,7 @@ internal static class SelfTest
             Test12UiSmoke(sandbox);
             Test13TailPreservation(sandbox);
             Test14CategoryCatalog(sandbox);
+            Test15OptionalColumns(sandbox);
         }
         catch (Exception ex)
         {
@@ -113,7 +114,10 @@ internal static class SelfTest
         Check("02 AGENTS.md 已生成", File.Exists(config.AgentsPath));
 
         var memory = File.ReadAllText(config.MemoryPath, Encoding.UTF8);
-        Check("02 MEMORY.md 含表头", memory.Contains("| ID | 类别 | 内容 | 来源 | 记录时间 |"));
+        Check("02 MEMORY.md 含表头（ID/类别/内容）",
+            memory.Contains("| ID |") && memory.Contains("| 类别 |") && memory.Contains("| 内容 |"),
+            memory);
+        Check("02 新文件不含「来源」列", !memory.Contains("| 来源 |"), memory);
         Check("02 MEMORY.md 含新条目", memory.Contains("M-0001") && memory.Contains("软件工程专业的学生"));
         Check("02 MEMORY.md 无 BOM", !memory.StartsWith('\uFEFF'));
         Check("02 记录时间格式为 yyyy-MM-dd HH:mm", repo.Load().Entries[0].Time.Length == 16 && repo.Load().Entries[0].Time[4] == '-');
@@ -138,13 +142,14 @@ internal static class SelfTest
         Check("03 顺序按 ID 升序", snapshot.Entries.Select(e => e.Id).SequenceEqual(new[] { "M-0001", "M-0002", "M-0003" }),
             string.Join(",", snapshot.Entries.Select(e => e.Id)));
         Check("03 字段完整解析",
-            snapshot.Entries[1].Category == "偏好" && snapshot.Entries[1].Content == "乙" && snapshot.Entries[1].Source == "来源B");
+            snapshot.Entries[1].Category == "偏好" && snapshot.Entries[1].Content == "乙",
+            $"类别={snapshot.Entries[1].Category} 内容={snapshot.Entries[1].Content}");
         Check("03 指纹非空", snapshot.Fingerprint.Length > 0);
         Check("03 无解析告警", snapshot.Warnings.Count == 0, string.Join(" / ", snapshot.Warnings));
 
-        // 外部编辑后能感知变化
+        // 外部编辑后能感知变化（按当前三列 + 记录时间的格式追加）
         var before = snapshot.Fingerprint;
-        File.AppendAllText(Path.Combine(dir, "MEMORY.md"), "| M-0004 | 外部 | 手工追加 | 编辑器 | 2026-01-01 |" + Environment.NewLine, Encoding.UTF8);
+        File.AppendAllText(Path.Combine(dir, "MEMORY.md"), "| M-0004 | 外部 | 手工追加 | 2026-01-01 |" + Environment.NewLine, Encoding.UTF8);
         var after = repo.Load();
         Check("03 外部修改后指纹变化", before != after.Fingerprint);
         Check("03 外部追加的行能被解析", after.Entries.Any(e => e.Id == "M-0004" && e.Content == "手工追加"));
@@ -613,6 +618,87 @@ internal static class SelfTest
         {
             Check("14 界面层类别下拉", false, ex.GetType().Name + ": " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// 可选列处理：「来源」已从界面下线，但**文件里已有的这一列必须保留**。
+    /// 这条用例守的是一个数据安全问题——
+    /// 界面不再支持某字段，绝不能演变成写回时静默删数据。
+    /// </summary>
+    private static void Test15OptionalColumns(string root)
+    {
+        const string withSource =
+            "# MEMORY.md — 长期记忆条目" + "\n" + "\n" +
+            "| ID | 类别 | 内容 | 来源 | 记录时间 |" + "\n" +
+            "| --- | --- | --- | --- | --- |" + "\n" +
+            "| M-0001 | 身份 | 已有来源的老条目 | 用户直接告知 | 2026-02-14 |" + "\n";
+
+        // ① 有「来源」列的文件：读得到、写回后还在
+        var dirA = Fresh(root, "15-with-source");
+        var cfgA = new StorageConfig { DataDirectory = dirA };
+        Utf8.WriteAllText(cfgA.MemoryPath, withSource);
+
+        var repoA = new MemoryRepository(cfgA);
+        var loaded = repoA.Load();
+        Check("15 能读出已有的来源值",
+            loaded.Entries.Count == 1 && loaded.Entries[0].Source == "用户直接告知",
+            loaded.Entries.Count == 1 ? $"来源=「{loaded.Entries[0].Source}」" : "条目丢失");
+
+        repoA.Add("项目", "新增条目不应破坏来源列", "", out _);
+        var afterA = Utf8.ReadAllText(cfgA.MemoryPath);
+
+        Check("15 写回后表头仍含「来源」列", afterA.Contains("| 来源 |"), afterA);
+        Check("15 写回后老条目的来源值未丢", afterA.Contains("用户直接告知"), afterA);
+        Check("15 新增条目来源留空", repoA.Load().Entries.Any(e => e.Category == "项目"));
+
+        var rereadA = repoA.Load();
+        Check("15 重新解析来源值一致",
+            rereadA.Entries.Any(e => e.Id == "M-0001" && e.Source == "用户直接告知"),
+            string.Join(" | ", rereadA.Entries.Select(e => $"{e.Id}:{e.Source}")));
+
+        // ② 没有「来源」列的文件：程序不加回来，但也不该崩
+        var dirB = Fresh(root, "15-without-source");
+        var cfgB = new StorageConfig { DataDirectory = dirB };
+        Utf8.WriteAllText(cfgB.MemoryPath,
+            "# MEMORY.md" + "\n" + "\n" +
+            "| ID | 类别 | 内容 | 记录时间 |" + "\n" +
+            "| --- | --- | --- | --- |" + "\n" +
+            "| M-0001 | 身份 | 没有来源列的条目 | 2026-02-14 |" + "\n");
+
+        var repoB = new MemoryRepository(cfgB);
+        repoB.Add("偏好", "新增条目", "", out _);
+        var afterB = Utf8.ReadAllText(cfgB.MemoryPath);
+
+        Check("15 没有来源列时不擅自加回来", !afterB.Contains("| 来源 |"), afterB);
+        Check("15 三列文件写入正常", repoB.Load().Entries.Count == 2, $"实际 {repoB.Load().Entries.Count}");
+
+        // ③ 全新文件：默认列不含「来源」
+        var dirC = Fresh(root, "15-fresh");
+        var cfgC = new StorageConfig { DataDirectory = dirC };
+        var repoC = new MemoryRepository(cfgC);
+        repoC.Add("身份", "全新文件第一条", "", out _);
+        var fresh = Utf8.ReadAllText(cfgC.MemoryPath);
+
+        Check("15 全新文件默认不含来源列", !fresh.Contains("| 来源 |"), fresh);
+        Check("15 全新文件含 ID/类别/内容/记录时间",
+            fresh.Contains("| ID |") && fresh.Contains("| 类别 |") && fresh.Contains("| 内容 |") && fresh.Contains("| 记录时间 |"),
+            fresh);
+
+        // ④ 自定义列不能被抹掉
+        var dirD = Fresh(root, "15-custom-column");
+        var cfgD = new StorageConfig { DataDirectory = dirD };
+        Utf8.WriteAllText(cfgD.MemoryPath,
+            "# MEMORY.md" + "\n" + "\n" +
+            "| ID | 类别 | 内容 | 优先级 | 记录时间 |" + "\n" +
+            "| --- | --- | --- | --- | --- |" + "\n" +
+            "| M-0001 | 身份 | 带自定义列 | 高 | 2026-02-14 |" + "\n");
+
+        var repoD = new MemoryRepository(cfgD);
+        repoD.Add("项目", "新增", "", out _);
+        var afterD = Utf8.ReadAllText(cfgD.MemoryPath);
+
+        Check("15 自定义列表头保留", afterD.Contains("| 优先级 |"), afterD);
+        Check("15 自定义列的值保留", afterD.Contains("| 高 |"), afterD);
     }
 
     private static void Test11RealWorkspaceReadOnly()

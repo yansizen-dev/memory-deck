@@ -9,8 +9,20 @@ public sealed class MemoryEntry
     public string Id { get; set; } = "";
     public string Category { get; set; } = "";
     public string Content { get; set; } = "";
+
+    /// <summary>
+    /// 界面已不再显示「来源」，但文件里若存在这一列，值会保留在这里并在写回时原样写出。
+    /// 避免"不再支持某个字段"演变成静默删数据。
+    /// </summary>
     public string Source { get; set; } = "";
+
     public string Time { get; set; } = "";
+
+    /// <summary>
+    /// 表格里除已知列之外的其他列（按出现顺序）。
+    /// 用户在 MEMORY.md 里手工加了自定义列时，程序不会把它抹掉。
+    /// </summary>
+    public List<string> Extra { get; set; } = new();
 
     public MemoryEntry Clone() => new()
     {
@@ -19,6 +31,7 @@ public sealed class MemoryEntry
         Content = Content,
         Source = Source,
         Time = Time,
+        Extra = new List<string>(Extra),
     };
 
     public override string ToString() => $"【{Category}】{Content}";

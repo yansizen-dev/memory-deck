@@ -16,7 +16,13 @@ public sealed class MemoryRepository
     private const string SummaryEnd = "<!-- MEMORY-DECK:SUMMARY:END -->";
     private const int MaxAutoBackups = 30;
 
-    private static readonly string[] DefaultColumns = { "ID", "类别", "内容", "来源", "记录时间" };
+    /// <summary>
+    /// 新文件默认写出的列：只有 ID / 类别 / 内容。
+    /// 「来源」已从界面下线，不再是默认列；但**已有文件里若还留着这一列，程序会继续维护它**
+    /// （见 BuildColumns），不会因为界面砍了字段就把历史数据删掉。
+    /// 「记录时间」由程序在新增时写入，列存在与否都以表头为准。
+    /// </summary>
+    private static readonly string[] DefaultColumns = { "ID", "类别", "内容", "记录时间" };
 
     private static readonly Regex IdPattern = new(@"^\s*([A-Za-z]{1,4})-(\d{4,6})\s*$", RegexOptions.Compiled);
     private static readonly object FileGate = new();
@@ -227,7 +233,13 @@ public sealed class MemoryRepository
     private WriteResult Persist(MarkdownDocument doc, string message)
     {
         doc.Entries.Sort(CompareEntries);
-        var columns = ResolveColumns(doc.HeaderLine);
+
+        // 列集合跟着表头走：文件里有「来源」就继续写「来源」，有自定义列就继续写自定义列。
+        // 界面不显示不等于要删数据。
+        var columns = BuildColumns(doc.HeaderLine);
+        var extraColumnNames = ResolveExtraColumnNames(doc.HeaderLine);
+        var extraIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < extraColumnNames.Count; i++) extraIndex[extraColumnNames[i]] = i;
 
         string? backupWarning = null;
         try { AutoBackup(); }
@@ -241,7 +253,7 @@ public sealed class MemoryRepository
         foreach (var entry in doc.Entries)
         {
             text.Append("| ")
-                .Append(string.Join(" | ", columns.Select(c => Escape(ValueOf(entry, c)))))
+                .Append(string.Join(" | ", columns.Select(c => Escape(ValueOf(entry, c, extraIndex)))))
                 .Append(" |").Append(Nl);
         }
 
@@ -313,6 +325,10 @@ public sealed class MemoryRepository
         if (span is null) return result;
 
         var columns = ResolveColumns(lines[span.Value.Header]);
+        var extras = columns
+            .Select((key, index) => (key, index))
+            .Where(pair => !KnownColumns.Contains(pair.key) && pair.key != "忽略")
+            .ToList();
 
         for (var i = span.Value.Separator + 1; i <= span.Value.Last; i++)
         {
@@ -320,6 +336,7 @@ public sealed class MemoryRepository
 
             var cells = SplitCells(lines[i]);
             var entry = new MemoryEntry();
+
             for (var c = 0; c < columns.Length; c++)
             {
                 var value = c < cells.Count ? cells[c].Trim() : "";
@@ -333,6 +350,10 @@ public sealed class MemoryRepository
                 }
             }
 
+            // 未知列按出现顺序收集，写回时原样输出
+            foreach (var (_, index) in extras)
+                entry.Extra.Add(index < cells.Count ? cells[index].Trim() : "");
+
             var isPlaceholder = entry.Id is "—" or "-" || entry.Content.StartsWith("暂无", StringComparison.Ordinal);
             if (isPlaceholder) continue;
             if (entry.Id.Length == 0 && entry.Content.Length == 0) continue;
@@ -341,6 +362,76 @@ public sealed class MemoryRepository
         }
 
         return result;
+    }
+
+    /// <summary>已知列名（有固定语义的列）。其余列一律作为"额外列"原样保留。</summary>
+    private static readonly string[] KnownColumns = { "ID", "类别", "内容", "来源", "记录时间" };
+
+    /// <summary>
+    /// 必须补齐的列。注意**不含「来源」**：
+    /// 「来源」已从界面下线，文件里没有这一列时绝不能擅自加回来；
+    /// 只有文件里本来就有，才需要继续维护它。
+    /// </summary>
+    private static readonly string[] RequiredColumns = { "ID", "类别", "内容", "记录时间" };
+
+    /// <summary>从表头里取出那些程序不认识、但必须保留的额外列名（按顺序）。</summary>
+    private static List<string> ResolveExtraColumnNames(string headerLine)
+    {
+        var cells = SplitCells(headerLine);
+        if (!HasHeaderKeyword(cells)) return new List<string>();
+
+        var extras = new List<string>();
+        for (var i = 0; i < cells.Count; i++)
+        {
+            var key = NormalizeHeader(cells[i]);
+            if (key.Length == 0 || key == "忽略") continue;
+            if (KnownColumns.Contains(key)) continue;
+
+            // 用原始表头文本，避免把用户写的列名规范化掉
+            extras.Add(cells[i].Trim());
+        }
+
+        return extras;
+    }
+
+    /// <summary>
+    /// 决定这次写回要用哪些列。
+    ///
+    /// 规则：
+    ///   · 「来源」这一列已不再在界面上显示/编辑，但**只要表头里还有它，就继续写出去**。
+    ///     这样用户历史数据里的来源信息不会因为"界面砍掉了这个字段"而被静默删除。
+    ///     想彻底移除该列，用户在 MEMORY.md 里手动删掉表头即可，程序会跟着收敛。
+    ///   · 额外列（自定义列）同理，永远原样保留。
+    /// </summary>
+    private static string[] BuildColumns(string headerLine)
+    {
+        var cells = SplitCells(headerLine);
+        var hasHeader = HasHeaderKeyword(cells);
+
+        var columns = new List<string>();
+
+        if (hasHeader)
+        {
+            for (var i = 0; i < cells.Count; i++)
+            {
+                var key = NormalizeHeader(cells[i]);
+                if (key.Length == 0 || key == "忽略") continue;
+                columns.Add(key);
+            }
+        }
+        else
+        {
+            columns.AddRange(RequiredColumns);
+        }
+
+        // 基础列必须有，否则新文件会缺列。
+        // 只补 RequiredColumns，不能补 KnownColumns——否则界面已下线的「来源」会被加回来。
+        foreach (var required in RequiredColumns)
+        {
+            if (!columns.Contains(required)) columns.Add(required);
+        }
+
+        return columns.ToArray();
     }
 
     private static string[] ResolveColumns(string headerLine)
@@ -355,34 +446,32 @@ public sealed class MemoryRepository
             columns[i] = key.Length == 0 ? "忽略" : key;
         }
 
-        // 补齐缺失的标准列，避免写入时丢字段
-        var missing = DefaultColumns.Where(d => !columns.Contains(d)).ToList();
-        if (missing.Count == 0) return columns;
-
-        var extended = columns.ToList();
-        extended.AddRange(missing);
-        return extended.ToArray();
+        return columns;
     }
 
-    private static string DisplayHeader(string key) => key switch
-    {
-        "ID" => "ID",
-        "类别" => "类别",
-        "内容" => "内容",
-        "来源" => "来源",
-        "记录时间" => "记录时间",
-        _ => key,
-    };
+    private static string DisplayHeader(string key) => key;
 
-    private static string ValueOf(MemoryEntry entry, string key) => key switch
+    /// <summary>
+    /// 取某列在某条记录里的值。
+    /// 「来源」虽然界面不显示，但只要表头里有这一列，写入时就要把值带出去。
+    /// 未知列（自定义列）从 Extra 里按顺序取。
+    /// </summary>
+    private static string ValueOf(MemoryEntry entry, string key, IReadOnlyDictionary<string, int> extraIndex)
     {
-        "ID" => entry.Id,
-        "类别" => entry.Category,
-        "内容" => entry.Content,
-        "来源" => entry.Source,
-        "记录时间" => entry.Time,
-        _ => "",
-    };
+        switch (key)
+        {
+            case "ID": return entry.Id;
+            case "类别": return entry.Category;
+            case "内容": return entry.Content;
+            case "来源": return entry.Source;
+            case "记录时间": return entry.Time;
+        }
+
+        if (extraIndex.TryGetValue(key, out var index) && index >= 0 && index < entry.Extra.Count)
+            return entry.Extra[index];
+
+        return "";
+    }
 
     private static bool HasHeaderKeyword(IReadOnlyList<string> cells)
     {
@@ -584,7 +673,7 @@ public sealed class MemoryRepository
         return list;
     }
 
-    private static string DefaultHeader() => "| ID | 类别 | 内容 | 来源 | 记录时间 |";
+    private static string DefaultHeader() => "| ID | 类别 | 内容 | 记录时间 |";
 
     private static string DefaultPreamble() =>
         "# MEMORY.md — 长期记忆条目" + Environment.NewLine + Environment.NewLine +

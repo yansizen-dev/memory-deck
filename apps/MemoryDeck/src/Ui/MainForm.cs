@@ -69,7 +69,7 @@ public sealed class MainForm : Form
     private readonly Label _lblHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
     private readonly TextBox _txtId = new() { Width = 90 };
     private readonly ComboBox _cboEditCategory = new() { Width = 130 };
-    private readonly TextBox _txtSource = new() { Width = 200 };
+    // 「来源」输入框已下线：字段本身在文件里保留（可选列），但界面不再提供编辑入口。
     private readonly TextBox _txtContent = new();
     private readonly Button _btnPrimary = new() { Text = "新增", Width = 88 };
     private readonly Button _btnDelete = new() { Text = "删除", Width = 88 };
@@ -166,7 +166,7 @@ public sealed class MainForm : Form
         BuildMenu();
 
         // ---- 顶部工具条
-        _txtSearch.PlaceholderText = "搜索 ID / 类别 / 内容 / 来源";
+        _txtSearch.PlaceholderText = "搜索 ID / 类别 / 内容（也可搜来源）";
         _txtSearch.TextChanged += (_, _) => ApplyFilter();
         _cboCategory.SelectedIndexChanged += (_, _) => { if (!_suppressEvents) ApplyFilter(); };
         _btnClearSearch.Click += (_, _) => { _txtSearch.Clear(); _cboCategory.SelectedIndex = 0; };
@@ -315,17 +315,17 @@ public sealed class MainForm : Form
 
     private void BuildEditor()
     {
+        // 布局：第一行只放「ID + 类别」，类别那一格吃掉整行剩余宽度。
+        // 「来源」控件已下线（字段本身在文件里保留，见 MemoryRepository 的可选列处理）。
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 6,
+            ColumnCount = 4,
             RowCount = 4,
             AutoSize = false,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -338,19 +338,18 @@ public sealed class MainForm : Form
         header.Controls.Add(_lblHint);
 
         layout.Controls.Add(header, 0, 0);
-        layout.SetColumnSpan(header, 6);
+        layout.SetColumnSpan(header, 4);
 
         layout.Controls.Add(new Label { Text = "ID", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 0, 1);
         _txtId.ReadOnly = true;
         _txtId.BackColor = SystemColors.Control;
+        _txtId.Dock = DockStyle.Fill;
         layout.Controls.Add(_txtId, 1, 1);
 
         layout.Controls.Add(new Label { Text = "类别", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 2, 1);
         _cboEditCategory.DropDownStyle = ComboBoxStyle.DropDown;
+        _cboEditCategory.Dock = DockStyle.Fill;
         layout.Controls.Add(_cboEditCategory, 3, 1);
-
-        layout.Controls.Add(new Label { Text = "来源", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 4, 1);
-        layout.Controls.Add(_txtSource, 5, 1);
 
         layout.Controls.Add(new Label { Text = "内容", AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 0, 2);
         _txtContent.Multiline = true;
@@ -358,7 +357,7 @@ public sealed class MainForm : Form
         _txtContent.AcceptsReturn = false;
         _txtContent.Dock = DockStyle.Fill;
         layout.Controls.Add(_txtContent, 1, 2);
-        layout.SetColumnSpan(_txtContent, 5);
+        layout.SetColumnSpan(_txtContent, 3);
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -387,7 +386,7 @@ public sealed class MainForm : Form
         buttons.Controls.Add(_btnDelete);
         buttons.Controls.Add(_btnReload);
         layout.Controls.Add(buttons, 0, 3);
-        layout.SetColumnSpan(buttons, 6);
+        layout.SetColumnSpan(buttons, 4);
 
         _editor.Controls.Add(layout);
     }
@@ -594,7 +593,6 @@ public sealed class MainForm : Form
         {
             _txtId.Text = "";
             _cboEditCategory.Text = "";
-            _txtSource.Text = "";
             _txtContent.Text = "";
         }
         finally
@@ -738,7 +736,6 @@ public sealed class MainForm : Form
         {
             _txtId.Text = entry.Id;
             _cboEditCategory.Text = entry.Category;
-            _txtSource.Text = entry.Source;
             _txtContent.Text = entry.Content;
         }
         finally
@@ -863,7 +860,6 @@ public sealed class MainForm : Form
                 _btnDelete.Enabled = false;
                 _txtContent.ReadOnly = true;
                 _cboEditCategory.Enabled = false;
-                _txtSource.ReadOnly = true;
                 break;
 
             case EditorMode.View:
@@ -874,7 +870,6 @@ public sealed class MainForm : Form
                 _btnDelete.Enabled = true;
                 _txtContent.ReadOnly = true;
                 _cboEditCategory.Enabled = false;
-                _txtSource.ReadOnly = true;
                 break;
 
             case EditorMode.New:
@@ -885,7 +880,6 @@ public sealed class MainForm : Form
                 _btnDelete.Enabled = false;
                 _txtContent.ReadOnly = false;
                 _cboEditCategory.Enabled = true;
-                _txtSource.ReadOnly = false;
                 break;
 
             case EditorMode.Edit:
@@ -896,7 +890,6 @@ public sealed class MainForm : Form
                 _btnDelete.Enabled = true;
                 _txtContent.ReadOnly = false;
                 _cboEditCategory.Enabled = true;
-                _txtSource.ReadOnly = false;
                 break;
         }
     }
@@ -917,7 +910,6 @@ public sealed class MainForm : Form
 
         var category = ParseCategoryName(_cboEditCategory.Text);
         var content = _txtContent.Text.Trim();
-        var source = _txtSource.Text.Trim();
 
         if (content.Length == 0)
         {
@@ -931,7 +923,8 @@ public sealed class MainForm : Form
 
         if (_mode == EditorMode.New)
         {
-            result = _repo.Add(category, content, source, out var id);
+            // 来源留空：字段在文件里保留（可选列），但界面不再提供录入入口
+            result = _repo.Add(category, content, "", out var id);
             newId = id;
         }
         else
@@ -941,7 +934,7 @@ public sealed class MainForm : Form
                 Id = _txtId.Text.Trim(),
                 Category = category,
                 Content = content,
-                Source = source,
+                Source = "",
             });
             newId = _txtId.Text.Trim();
         }
