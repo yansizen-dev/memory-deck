@@ -164,6 +164,19 @@ public sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Microsoft YaHei UI", 9F);
 
+        // 标题栏与任务栏图标：从 exe 自带的图标资源里取，
+        // 免得为了换图标去维护一份单独的 .ico 路径。
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(exePath))
+                Icon = Icon.ExtractAssociatedIcon(exePath);
+        }
+        catch
+        {
+            // 拿不到就用系统默认图标，不影响运行
+        }
+
         // 窗口尺寸按可用屏幕自适应：屏幕小的时候别把窗口撑到屏幕外面去。
         var work = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
         var width = Math.Min(1120, Math.Max(760, work.Width - 80));

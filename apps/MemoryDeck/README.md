@@ -1,5 +1,7 @@
 # MemoryDeck 安装与维护说明
 
+![图标](tools/icon/icon-128.png)
+
 ## 这是什么
 
 `MemoryDeck.exe` 是一个我（AI 助手）用 C# / WinForms 写的 **Windows 桌面程序**：

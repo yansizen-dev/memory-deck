@@ -1,5 +1,7 @@
 <div align="center">
 
+![图标](apps/MemoryDeck/tools/icon/icon-128.png)
+
 # MemoryDeck
 
 **记忆卡片管理器 —— 让你的长期记忆有一张看得见的脸**

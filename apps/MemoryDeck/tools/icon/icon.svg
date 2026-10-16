@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="MemoryDeck">
+  <title>MemoryDeck</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5684F0" />
+      <stop offset="1" stop-color="#245CD6" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#tile)" />
+  <g>
+    <rect x="56.6" y="44.7" width="132.3" height="162.4" rx="16.8" fill="#CBD3DF" stroke="#A6B0C0" stroke-width="1.96" />
+    <rect x="56.6" y="52.4" width="124.6" height="147.0" rx="15.4" fill="#FFFFFF" stroke="#566274" stroke-width="2.38" />
+    <rect x="76.2" y="80.4" width="84.0" height="12.6" rx="6.3" fill="#2F6FEB" />
+    <rect x="76.2" y="112.6" width="72.8" height="12.6" rx="6.3" fill="#89AEF5" />
+    <rect x="76.2" y="144.8" width="54.6" height="12.6" rx="6.3" fill="#89AEF5" />
+  </g>
+</svg>
