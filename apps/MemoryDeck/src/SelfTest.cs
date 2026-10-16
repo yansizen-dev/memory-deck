@@ -378,6 +378,7 @@ internal static class SelfTest
                 System.Windows.Forms.Application.SetHighDpiMode(System.Windows.Forms.HighDpiMode.PerMonitorV2);
             }),
             ("12 构造 MainForm", () => SmokeRun(config)),
+            ("12 外部变更后重载不崩溃", () => SmokeReload(config)),
         };
 
         foreach (var (name, body) in steps)
@@ -400,8 +401,9 @@ internal static class SelfTest
     {
         using var form = new MemoryDeck.Ui.MainForm(config);
 
+        ActivateForm(form);
+
         Check("12 主窗口句柄创建成功", form.Handle != IntPtr.Zero);
-        form.CreateControl();
         Check("12 界面布局计算完成", form.ClientSize.Width > 0 && form.ClientSize.Height > 0,
             $"ClientSize = {form.ClientSize}");
         Check("12 窗口标题正确", form.Text.Contains("MemoryDeck"), form.Text);
@@ -411,16 +413,28 @@ internal static class SelfTest
         Check("12 最小尺寸不超过当前尺寸", form.MinimumSize.Width <= form.Width && form.MinimumSize.Height <= form.Height,
             $"MinimumSize = {form.MinimumSize}，Size = {form.Size}");
 
-        // 跑一遍消息队列，把 Load 之后排队的布局/绘制消息都处理掉
-        Application.DoEvents();
-        form.Refresh();
-        Application.DoEvents();
-
         form.Close();
 
         // 界面加载后不应污染沙箱里的数据文件
         var after = new MemoryRepository(config).Load();
         Check("12 界面启动未改动记忆条目数", after.Entries.Count == 2, $"实际 {after.Entries.Count}");
+    }
+
+    /// <summary>
+    /// 让窗口真正「加载」一次。
+    /// 关键：只访问 form.Handle 不会触发 Load 事件，数据不会被读进表格；
+    /// 必须 Show 一次并抽干消息队列，Load 才会跑（OnLoad 里的分隔条调整与 ReloadAll 都在那时执行）。
+    /// 显示后立刻隐藏，避免在用户桌面上留窗口。
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void ActivateForm(Form form)
+    {
+        form.Show();
+        Application.DoEvents();
+        form.Refresh();
+        Application.DoEvents();
+        form.Hide();
+        Application.DoEvents();
     }
 
     /// <summary>
@@ -464,6 +478,62 @@ internal static class SelfTest
 
         // 前置说明也不能丢
         Check("13 表头之前的说明保留", afterRemove.Contains(preamble));
+    }
+
+    /// <summary>
+    /// 回归：界面运行期间外部修改 MEMORY.md，触发重载。
+    /// 曾经在表格清空、行索引越界时抛异常直接杀进程，这条用例专门守住它。
+    /// 覆盖三种边界：追加一行、删掉所有行、再加回来。
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void SmokeReload(StorageConfig config)
+    {
+        var repo = new MemoryRepository(config);
+
+        using var form = new MemoryDeck.Ui.MainForm(config);
+        ActivateForm(form);
+
+        Check("12 初始表格行数正确", form.GridRowCountForTest == 2, $"实际 {form.GridRowCountForTest}");
+
+        // ① 外部追加一行
+        repo.Add("目标", "外部追加的条目", "自检", out var newId);
+        form.ReloadForTest();
+        Application.DoEvents();
+        Check("12 追加后重载：条目数 3", form.EntryCountForTest == 3, $"实际 {form.EntryCountForTest}");
+        Check("12 追加后重载：表格行数 3", form.GridRowCountForTest == 3, $"实际 {form.GridRowCountForTest}");
+
+        // ② 外部删到一行不剩 —— 表格会被清空，最容易触发越界
+        foreach (var entry in repo.Load().Entries.ToList())
+        {
+            repo.Remove(entry);
+        }
+
+        form.ReloadForTest();
+        Application.DoEvents();
+        Check("12 清空后重载：条目数 0", form.EntryCountForTest == 0, $"实际 {form.EntryCountForTest}");
+        Check("12 清空后重载：表格行数 0", form.GridRowCountForTest == 0, $"实际 {form.GridRowCountForTest}");
+
+        // ③ 再加回来，确认能从空表格恢复
+        repo.Add("身份", "恢复后的条目", "自检", out _);
+        form.ReloadForTest();
+        Application.DoEvents();
+        Check("12 恢复后重载：条目数 1", form.EntryCountForTest == 1, $"实际 {form.EntryCountForTest}");
+        Check("12 恢复后重载：表格行数 1", form.GridRowCountForTest == 1, $"实际 {form.GridRowCountForTest}");
+
+        // ④ 文件被外部删掉（最极端）
+        File.Delete(config.MemoryPath);
+        form.ReloadForTest();
+        Application.DoEvents();
+        Check("12 文件消失后重载不崩溃", form.EntryCountForTest == 0, $"实际 {form.EntryCountForTest}");
+
+        // ⑤ 文件被外部写坏（非 Markdown 内容）
+        File.WriteAllText(config.MemoryPath, "这不是表格，随便写点东西。", Encoding.UTF8);
+        form.ReloadForTest();
+        Application.DoEvents();
+        Check("12 文件被写坏后重载不崩溃", form.EntryCountForTest == 0, $"实际 {form.EntryCountForTest}");
+
+        form.Close();
+        _ = newId;
     }
 
     private static void Test11RealWorkspaceReadOnly()

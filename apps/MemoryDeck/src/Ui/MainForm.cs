@@ -77,7 +77,7 @@ public sealed class MainForm : Form
         _repo = new MemoryRepository(_config);
 
         BuildUi();
-        _watch.Tick += (_, _) => WatchForExternalChanges();
+        _watch.Tick += (_, _) => RunGuarded("外部变更监视", WatchForExternalChanges);
         _watch.Start();
     }
 
@@ -195,12 +195,14 @@ public sealed class MainForm : Form
         _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 249, 251);
         _grid.AutoGenerateColumns = false;
         _grid.Columns.AddRange(_colId, _colCategory, _colContent, _colSource, _colTime);
-        _grid.SelectionChanged += (_, _) => OnGridSelectionChanged();
+        _grid.SelectionChanged += (_, _) => RunGuarded("表格选中变化", OnGridSelectionChanged);
         _grid.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) BeginEditSelected(); };
         _grid.KeyDown += Grid_KeyDown;
         _grid.CellToolTipTextNeeded += (_, e) =>
         {
+            e.ToolTipText = "";
             if (e.RowIndex < 0 || e.RowIndex >= _view.Count) return;
+            if (e.RowIndex >= _grid.Rows.Count) return;
             e.ToolTipText = _view[e.RowIndex].Content;
         };
 
@@ -470,10 +472,12 @@ public sealed class MainForm : Form
         if (_suppressEvents) return;
         if (_mode is EditorMode.New or EditorMode.Edit) return;
 
+        // 重载过程中表格会被清空，此时行索引可能已经越界，必须加界检查
         var entry = CurrentSelectedEntry();
         if (entry is null)
         {
             SetEditorMode(EditorMode.None);
+            if (_grid.SelectedRows.Count == 0) ClearEditor();
             return;
         }
 
@@ -481,10 +485,81 @@ public sealed class MainForm : Form
         SetEditorMode(EditorMode.View);
     }
 
+    private void ClearEditor()
+    {
+        _current = null;
+        _suppressEvents = true;
+        try
+        {
+            _txtId.Text = "";
+            _cboEditCategory.Text = "";
+            _txtSource.Text = "";
+            _txtContent.Text = "";
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+    }
+
+    /// <summary>
+    /// 统一的异常护栏：界面事件回调里抛出的异常会直接终止进程，
+    /// 所以任何可能失败的 UI 回调都必须经过这里，把异常转成状态栏提示。
+    /// </summary>
+    /// <summary>
+    /// 供自检使用：触发一次与「外部修改文件后自动刷新」等价的完整重载流程。
+    /// 这条路径曾经在表格清空、行索引越界时直接把进程干掉，必须有回归覆盖。
+    /// </summary>
+    internal void ReloadForTest() => RunGuarded("重载（自检）", () => ReloadAll(selectFirst: true));
+
+    /// <summary>供自检使用：读取当前表格行数。</summary>
+    internal int GridRowCountForTest => _grid.Rows.Count;
+
+    /// <summary>供自检使用：读取当前快照条目数。</summary>
+    internal int EntryCountForTest => _snapshot.Entries.Count;
+
+    private void RunGuarded(string what, Action body)
+    {
+        try
+        {
+            body();
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                var dir = Path.Combine(Path.GetTempPath(), "MemoryDeck");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(
+                    Path.Combine(dir, "ui-errors.log"),
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {what} 异常：{ex.GetType().Name}: {ex.Message}{Environment.NewLine}{ex.StackTrace}{Environment.NewLine}{Environment.NewLine}",
+                    new UTF8Encoding(false));
+            }
+            catch
+            {
+                // 日志失败也不能再抛
+            }
+
+            try
+            {
+                SetStatus($"{what} 出错（已忽略并记录）：{ex.Message}", warning: true);
+            }
+            catch
+            {
+                // 连状态栏都失败就彻底放弃
+            }
+        }
+    }
+
     private MemoryEntry? CurrentSelectedEntry()
     {
         if (_grid.SelectedRows.Count == 0) return null;
+
+        // 选中行的 Tag 保存的是条目 ID；用 ID 去快照里找，不依赖行索引，
+        // 这样即使表格正在重载、行与 _view 短暂不同步也不会取错或越界。
         if (_grid.SelectedRows[0].Tag is not string id) return null;
+        if (string.IsNullOrWhiteSpace(id)) return null;
+
         return _snapshot.Entries.FirstOrDefault(e => string.Equals(e.Id, id, StringComparison.OrdinalIgnoreCase));
     }
 
