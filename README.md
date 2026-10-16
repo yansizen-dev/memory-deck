@@ -110,11 +110,12 @@ MemoryDeck.exe --help               # 帮助
 ```powershell
 MemoryDeck.exe --export                     # 打到 stdout，可接管道
 MemoryDeck.exe --export -o 记忆.txt          # 写入文件（UTF-8 无 BOM）
-MemoryDeck.exe --export --with-time         # 带上记录时间
 MemoryDeck.exe --export --no-preferences    # 不带 AGENTS.md 里的协作偏好
 MemoryDeck.exe --export --no-header         # 不带说明头
 MemoryDeck.exe --export --category 身份 --category 项目   # 只导出指定类别
 ```
+
+导出**不包含记录时间**——对 AI 判断帮助小，还会明显拉长体量。
 
 界面里对应 **数据(D) → 导出给网页版 AI…**（`Ctrl+Shift+E`）。
 

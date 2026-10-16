@@ -16,7 +16,6 @@ public sealed class ExportDialog : Form
     private readonly IReadOnlyList<MemoryEntry> _entries;
 
     private readonly TextBox _preview = new();
-    private readonly CheckBox _chkTime = new() { Text = "带上记录时间", AutoSize = true };
     private readonly CheckBox _chkPreferences = new() { Text = "带上协作偏好（来自 AGENTS.md）", AutoSize = true };
     private readonly CheckBox _chkHeader = new() { Text = "带上说明头（告诉 AI 这段是什么）", AutoSize = true };
     private readonly CheckedListBox _categories = new();
@@ -54,30 +53,49 @@ public sealed class ExportDialog : Form
         MinimumSize = new Size(640, 480);
         Font = new Font("Microsoft YaHei UI", 9F);
 
-        // ---------------- 顶部：说明 + 选项
-        var top = new Panel { Dock = DockStyle.Top, Height = 156, Padding = new Padding(14, 10, 14, 6) };
+        // ---------------- 顶部：说明 + 选项 + 类别筛选
+        // 用「自上而下的自动布局」：外层纵向 FlowLayoutPanel(AutoSize) 堆三块，
+        // 每块自己决定高度，整块再按内容自动撑高。
+        // 之前把说明文字的高度硬编码成 40px，而两行中文实测需要 48px，
+        // 结果文字溢出压住下方复选框。手工测高这类事交给布局引擎，别再硬编码。
+        var headerHost = new Panel
+        {
+            Dock = DockStyle.Top,
+            Padding = new Padding(14, 10, 14, 8),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        };
+
+        var headerStack = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        };
 
         var explain = new Label
         {
-            Dock = DockStyle.Top,
-            Height = 40,
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 6),
             Text = "下面这段文字可以直接复制，粘进 ChatGPT / Claude / DeepSeek 等网页对话框。\n" +
                    "格式是纯文本，不带标记注释，粘贴后即可用。",
         };
 
         var optionsRow = new FlowLayoutPanel
         {
-            Dock = DockStyle.Top,
-            Height = 44,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
+            Margin = new Padding(0, 0, 0, 8),
         };
-        _chkTime.Checked = false;
         _chkPreferences.Checked = true;
         _chkHeader.Checked = true;
-        foreach (var box in new[] { _chkHeader, _chkPreferences, _chkTime })
+        foreach (var box in new[] { _chkHeader, _chkPreferences })
         {
-            box.Margin = new Padding(0, 6, 22, 8);
+            box.Margin = new Padding(0, 4, 24, 0);
             box.CheckedChanged += (_, _) => Rebuild();
             optionsRow.Controls.Add(box);
         }
@@ -128,9 +146,28 @@ public sealed class ExportDialog : Form
         categoryRow.Controls.Add(categoryButtons);
         categoryRow.Controls.Add(categoryLabel);
 
-        top.Controls.Add(categoryRow);
-        top.Controls.Add(optionsRow);
-        top.Controls.Add(explain);
+        // 组装：纵向堆叠，每块自己决定高度
+        categoryRow.Height = 84;
+        categoryRow.Margin = new Padding(0);
+        categoryRow.AutoSize = false;
+        headerStack.Controls.Add(explain);
+        headerStack.Controls.Add(optionsRow);
+        headerStack.Controls.Add(categoryRow);
+        headerHost.Controls.Add(headerStack);
+
+        // 说明文字要换行：宽度跟着窗口走，高度交给 AutoSize
+        void ResizeExplain()
+        {
+            var available = headerHost.ClientSize.Width - headerHost.Padding.Horizontal;
+            if (available > 60) explain.MaximumSize = new Size(available, 0);
+            if (available > 60)
+            {
+                categoryRow.Width = available;
+                optionsRow.Width = available;
+            }
+        }
+        headerHost.Resize += (_, _) => ResizeExplain();
+        ResizeExplain();
 
         // ---------------- 中部：预览
         _preview.Dock = DockStyle.Fill;
@@ -167,7 +204,7 @@ public sealed class ExportDialog : Form
 
         Controls.Add(previewHost);
         Controls.Add(bottom);
-        Controls.Add(top);
+        Controls.Add(headerHost);
 
         AcceptButton = _btnCopy;
         CancelButton = _btnClose;
@@ -197,7 +234,8 @@ public sealed class ExportDialog : Form
             agentsText,
             new MemoryExporter.Options
             {
-                IncludeTime = _chkTime.Checked,
+                // 记录时间固定不导出：对 AI 判断帮助小，且会明显拉长体量
+                IncludeTime = false,
                 IncludePreferences = _chkPreferences.Checked,
                 IncludeHeader = _chkHeader.Checked,
                 OnlyCategories = chosen,

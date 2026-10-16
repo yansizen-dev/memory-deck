@@ -107,7 +107,6 @@ internal sealed class CommandLineOptions
         导出（给网页版 AI 用的纯文本）：
           MemoryDeck.exe --export [-o 文件]           导出可粘贴的纯文本；不指定 -o 则打到 stdout
           MemoryDeck.exe --export -o out.txt          写入文件（UTF-8 无 BOM）
-          MemoryDeck.exe --export --with-time         带上记录时间
           MemoryDeck.exe --export --no-preferences    不带 AGENTS.md 里的协作偏好
           MemoryDeck.exe --export --no-header         不带说明头
           MemoryDeck.exe --export --category 身份 --category 项目
@@ -149,11 +148,6 @@ internal sealed class CommandLineOptions
                 case "--export":
                     options.RunExport = true;
                     break;
-
-                case "--with-time":
-                    options.Export.IncludeTime = true;
-                    break;
-
                 case "--no-preferences":
                     options.Export.IncludePreferences = false;
                     break;

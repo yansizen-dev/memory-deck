@@ -29,7 +29,8 @@ internal static class ExportCommand
                 agentsText,
                 new MemoryExporter.Options
                 {
-                    IncludeTime = options.IncludeTime,
+                    // 记录时间固定不导出（对 AI 判断帮助小，且明显拉长体量）
+                IncludeTime = false,
                     IncludePreferences = options.IncludePreferences,
                     IncludeHeader = options.IncludeHeader,
                     OnlyCategories = options.Categories,
