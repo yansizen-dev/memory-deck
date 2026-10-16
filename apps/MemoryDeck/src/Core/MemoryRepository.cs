@@ -210,7 +210,13 @@ public sealed class MemoryRepository
         if (tailStart < lines.Count)
         {
             var tailLines = lines.GetRange(tailStart, lines.Count - tailStart);
-            var tailText = string.Join(Environment.NewLine, tailLines).TrimEnd();
+
+            // 去掉前导空行与尾部空行，否则读→写往返一次就会多攒一个空行：
+            // 上次写出的 "Nl + 内容" 会被当成内容的一部分读回来，再拼一层 Nl。
+            while (tailLines.Count > 0 && tailLines[0].Trim().Length == 0) tailLines.RemoveAt(0);
+            while (tailLines.Count > 0 && tailLines[^1].Trim().Length == 0) tailLines.RemoveAt(tailLines.Count - 1);
+
+            var tailText = string.Join(Environment.NewLine, tailLines);
             doc.Tail = tailText.Length == 0 ? "" : Environment.NewLine + tailText;
         }
 
@@ -239,11 +245,16 @@ public sealed class MemoryRepository
                 .Append(" |").Append(Nl);
         }
 
-        if (doc.Tail.Length > 0) text.Append(doc.Tail).Append(Nl);
+        // 表格之后的手写内容原样接回。
+        // 注意不要在这里再补一个换行：doc.Tail 本身以 Nl 开头、以内容结尾，
+        // 统一在最后 TrimEnd 后补一个换行，避免每写一次就多攒一个空行。
+        if (doc.Tail.Length > 0) text.Append(doc.Tail);
+
+        var body = text.ToString().TrimEnd('\r', '\n');
 
         try
         {
-            Utf8.WriteAllText(Config.MemoryPath, text.ToString());
+            Utf8.WriteAllText(Config.MemoryPath, body + Nl);
         }
         catch (Exception ex)
         {

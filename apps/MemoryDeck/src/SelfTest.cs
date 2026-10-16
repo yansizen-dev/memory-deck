@@ -478,6 +478,24 @@ internal static class SelfTest
 
         // 前置说明也不能丢
         Check("13 表头之前的说明保留", afterRemove.Contains(preamble));
+
+        // 连续写入不应累积空行（曾经每写一次就多攒一个空行）
+        var writeRepo = new MemoryRepository(config);
+        var trailingCounts = new List<int>();
+        for (var i = 0; i < 4; i++)
+        {
+            writeRepo.Add("类别", $"第 {i + 1} 次写入", "自检", out var roundId);
+            var current = writeRepo.Load();
+            writeRepo.Remove(current.Entries.First(e => e.Id == roundId));
+
+            var content = Utf8.ReadAllText(memoryPath);
+            var matches = System.Text.RegularExpressions.Regex.Matches(content, @"\n\s*\n\s*\n");
+            trailingCounts.Add(matches.Count);
+        }
+
+        Check("13 连续 4 次写入不累积连续空行",
+            trailingCounts.All(c => c == trailingCounts[0]),
+            "各轮连续空行数：" + string.Join(", ", trailingCounts));
     }
 
     /// <summary>
