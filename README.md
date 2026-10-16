@@ -308,6 +308,16 @@ System.Windows.Forms.SplitContainer.ApplyPanel2MinSize(Int32 value)
 
 ---
 
+## 下一步
+
+[`docs/ROADMAP.md`](docs/ROADMAP.md) 记录了 v1.0.0 之后的完善方向，
+按"日常摩擦 → 数据规模 → 工程稳固"分了三梯队，每条附造价与风险。
+
+当前最该补的缺口是 **单实例锁**——同一数据目录开两个实例会互相覆盖，
+这是数据安全问题而非体验问题。
+
+---
+
 ## 环境要求
 
 - Windows 10 / 11（x64）
