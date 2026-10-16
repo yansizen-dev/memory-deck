@@ -31,16 +31,22 @@
 .PARAMETER Clean
     先清空整个 dist\ 再打包。发正式版时用它，避免旧版本的残留文件混在一起。
 
+.PARAMETER AsciiZipNames
+    zip 用纯 ASCII 名字（-assets / -source）。
+    要往 GitHub Release 上传时必须加这个：实测 CJK 文件名会让
+    gh release upload 报 404 或把资产名截断成 xxx-.zip。
+
 .EXAMPLE
     .\package.ps1
-    .\package.ps1 -Clean
+    .\package.ps1 -Clean -AsciiZipNames
     .\package.ps1 -Version 1.2.2
 #>
 [CmdletBinding()]
 param(
     [string]$Version,
     [switch]$SkipZip,
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$AsciiZipNames
 )
 
 $ErrorActionPreference = 'Stop'
@@ -177,9 +183,18 @@ finally {
 if (-not $SkipZip) {
     Step '压缩'
 
+    # 注意：GitHub Release 的资产名不要用中文。
+    # 实测 `gh release upload` 遇到 CJK 文件名会 404 或把名字截断成 `xxx-.zip`。
+    # 本地目录名用中文没问题，只有上传用的 zip 名必须是 ASCII。
+    $assetZipName = if ($AsciiZipNames) { "$AppName-assets.zip" } else { "$AppName-素材.zip" }
+    if ($AsciiZipNames -and (Test-Path (Join-Path $DistDir "$AppName-源码.zip"))) {
+        Move-Item (Join-Path $DistDir "$AppName-源码.zip") (Join-Path $DistDir "$AppName-source.zip") -Force
+        Ok '源码包改名为 ASCII'
+    }
+
     foreach ($pair in @(
             @{ Src = $RunDir;   Zip = "$AppName-win-x64.zip" },
-            @{ Src = $AssetDir; Zip = "$AppName-素材.zip" })) {
+            @{ Src = $AssetDir; Zip = $assetZipName })) {
 
         $target = Join-Path $DistDir $pair.Zip
         if (Test-Path $target) { Remove-Item $target -Force }

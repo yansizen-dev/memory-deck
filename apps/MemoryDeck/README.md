@@ -148,6 +148,49 @@ cd <仓库路径>\apps\MemoryDeck
 > `build.ps1` 带 UTF-8 BOM。**不要另存为无 BOM**，否则 Windows PowerShell 5.1
 > 会按 ANSI 解析中文注释，直接报一堆语法错误。
 
+## 打包发布
+
+```powershell
+.\package.ps1                          # 整理到 dist\
+.\package.ps1 -Clean                   # 先清空 dist\ 再打包
+.\package.ps1 -Clean -AsciiZipNames    # 往 GitHub Release 上传时用这个
+```
+
+产出结构：
+
+```
+dist\
+  MemoryDeck-<版本>-win-x64\     可运行包
+    MemoryDeck.exe
+    README.md
+    快速上手.txt
+    模板\                       首次使用的干净模板
+      MEMORY.md
+      AGENTS.md
+  MemoryDeck-<版本>-素材\        发布会 / 分享素材
+    icon\                       图标全套（7 个尺寸 + ico + svg）
+    mainwindow.png              界面截图
+    export-dialog.png           导出对话框截图
+    social-preview.png          社交预览图
+  MemoryDeck-<版本>-win-x64.zip
+  MemoryDeck-<版本>-assets.zip
+  MemoryDeck-<版本>-source.zip   git archive 产出，遵守 .gitignore
+```
+
+### 打包脚本里的两道防线
+
+**① 泄漏自检**：扫描所有非二进制文件，命中开发机路径 / 作者账号就**中止打包**。
+存在的原因是 `publish\memorydeck.config.json` 里写着开发机的绝对路径，
+一旦被打进发布包，别人的程序会指向一个不存在的目录。
+
+**② 模板与工作配置分离**：发布包里的「模板」来自 `templates\*.template.md`，
+不是仓库根的 `MEMORY.md` / `AGENTS.md`——后者是维护者自己的工作配置，
+不该当产品模板发出去。
+
+> `-AsciiZipNames` 存在的理由：**GitHub Release 的资产名不要用中文**。
+> 实测 `gh release upload` 遇到 CJK 文件名会 404，
+> 或者把名字截断成 `xxx-.zip`。本地目录名用中文没问题，只有上传用的 zip 名必须是 ASCII。
+
 ## 已知的本机环境坑
 
 这台机器的 NuGet 全局配置里有一条 Visual Studio 留下的 `fallbackPackageFolders`，
