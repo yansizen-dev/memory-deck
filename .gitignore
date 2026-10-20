@@ -32,3 +32,12 @@ desktop.ini
 
 # ---- 本地工具生成物（不属于产品） ----
 docs/agents/
+
+# ---- 安装工程的构建产物 ----
+# payload\ 里的 exe / launcher / runtime 都是构建时生成或下载的，
+# 用 installer\build.py 可以重现（runtime 从微软官方下载并做 SHA-512 校验）。
+installer/payload/runtime/
+installer/payload/MemoryDeck.exe
+installer/payload/MemoryDeckLauncher.exe
+installer/download-cache/
+installer/dist/

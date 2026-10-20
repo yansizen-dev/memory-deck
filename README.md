@@ -50,8 +50,30 @@ MemoryDeck 把这个流程做成了图形界面：
 | **外部变更跟随** | 每 1.5 秒检查文件指纹；你在编辑器改完保存，界面 2 秒内自动刷新 |
 | **无损转义** | 内容里的竖线、反斜杠、emoji、全角字符都能原样往返，不破表 |
 | **幂等写入** | 对同一份文件反复读写，结果字节级一致 |
-| **一键自检** | `--selftest` 跑 103 项检查，含界面冒烟测试与崩溃回归 |
+| **一键自检** | `--selftest` 跑 140 项检查，含界面冒烟测试与崩溃回归 |
 | **数据自愈** | `--repair` 规范化重写并校验"条目数无损"，格式乱了跑一次就恢复 |
+
+---
+
+## 下载
+
+到 [Releases](https://github.com/yansizen-dev/memory-deck/releases) 页面，两种安装方式：
+
+| 方式 | 文件 | 适合谁 |
+| --- | --- | --- |
+| **安装版（推荐）** | `MemoryDeck-<版本>-Setup-win-x64.exe` | 大多数人。**随附离线 .NET 运行时，装完即用，不需要另外装任何东西** |
+| 免安装版 | `MemoryDeck-<版本>-win-x64.zip` | 想绿色使用 / 放在 U 盘里。需要机器上已有 .NET 10 桌面运行时 |
+
+安装版的行为：
+
+- 装到 `%LOCALAPPDATA%\Programs\MemoryDeck`（**当前用户，不需要管理员权限**）
+- 记忆数据放在 `%LOCALAPPDATA%\MemoryDeck\Data`，**卸载不会删数据**
+- 提供桌面 / 开始菜单快捷方式、标准卸载入口
+- 运行时来自微软官方发布，构建时做了 SHA-512 校验
+
+> ⚠️ **安装包未做数字签名。** 首次运行 Windows SmartScreen 可能会提示"未知发布者"，
+> 需要点「更多信息」→「仍要运行」。这是未签名程序的正常表现。
+> 安装包的 SHA-256 会写在对应 Release 的说明里，可以自行核对。
 
 ---
 
@@ -71,7 +93,7 @@ MemoryDeck 把这个流程做成了图形界面：
 cd apps\MemoryDeck
 .\build.ps1              # 编译 + 自检 + 发布（产物在 publish\）
 .\build.ps1 -TestOnly    # 只跑自检，不编译
-.\build.ps1 -Install     # 发布后建桌面快捷方式、设置 MEMORYDECK_DATA
+.\build.ps1 -Install     # 发布后建桌面快捷方式
 ```
 
 > `build.ps1` 带 UTF-8 BOM。**不要另存为无 BOM**，
@@ -197,7 +219,7 @@ MemoryDeck.exe --export --category 身份 --category 项目   # 只导出指定�
     └── src/
         ├── Program.cs          # 入口与命令行解析
         ├── ConsoleBridge.cs    # WinExe 的控制台桥接（挂父控制台 + 日志双写）
-        ├── SelfTest.cs         # 85 项自检
+        ├── SelfTest.cs         # 140 项自检
         ├── Repair.cs           # --repair 自愈模式
         ├── EnvDump.cs          # --env 环境诊断
         ├── Core/

@@ -11,7 +11,7 @@
     只跑自检，不编译不发布。
 
 .PARAMETER Install
-    发布后重建桌面快捷方式并设置 MEMORYDECK_DATA 环境变量。
+    发布后重建桌面快捷方式，并清理会抢占配置优先级的遗留环境变量。
 
 .PARAMETER DataDirectory
     数据目录，默认是仓库根（本脚本所在目录往上两级）。
@@ -156,9 +156,20 @@ $configJson = $config | ConvertTo-Json -Depth 3
 Write-Host "  $ConfigPath" -ForegroundColor Green
 
 if ($Install) {
-    Write-Step '设置用户环境变量 MEMORYDECK_DATA'
-    [Environment]::SetEnvironmentVariable('MEMORYDECK_DATA', $DataDirectory, 'User')
-    Write-Host "  MEMORYDECK_DATA = $DataDirectory" -ForegroundColor Green
+    # 注意：这里刻意不设 MEMORYDECK_DATA 用户级环境变量。
+    #
+    # 它的优先级高于 exe 同级的 memorydeck.config.json，设成全局会污染整台机器：
+    # 连通过安装包装好的 MemoryDeck 都会忽略自己的配置，跑去读写开发机的数据目录。
+    # 这个坑实际踩过——装好的程序自检时显示指向 F:\DSH\仓库。
+    #
+    # 免安装包靠 exe 同级的 memorydeck.config.json 已经够用，不需要环境变量。
+    $existing = [Environment]::GetEnvironmentVariable('MEMORYDECK_DATA', 'User')
+    if ($existing) {
+        Write-Step '清理遗留的 MEMORYDECK_DATA 环境变量'
+        [Environment]::SetEnvironmentVariable('MEMORYDECK_DATA', $null, 'User')
+        Write-Host "  已清除：「$existing」" -ForegroundColor Yellow
+        Write-Host '  它会抢占配置文件优先级，导致安装版读错数据目录。'
+    }
 
     Write-Step '创建桌面快捷方式'
     New-Shortcut -Target $ExePath -WorkingDirectory $PublishDir

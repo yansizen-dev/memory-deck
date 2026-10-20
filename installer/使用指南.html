@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MemoryDeck · 使用指南</title>
+<style>body{font:16px/1.8 "Microsoft YaHei",sans-serif;color:#203832;background:#f5f7f4;margin:0}main{max-width:800px;margin:40px auto;background:white;padding:36px 44px;border-radius:16px}h1{color:#175448}h2{margin-top:30px;font-size:21px}code{background:#eef3f0;padding:2px 6px;overflow-wrap:anywhere}li{margin:8px 0}aside{background:#eef5f1;padding:16px;border-left:4px solid #27725f}a{color:#175448}</style>
+<main><p>MEMORYDECK / 1.2.2</p><h1>把重要信息，整理成可复用的记忆。</h1>
+<p>MemoryDeck 是一个 Windows 本地记忆卡片管理器。你可以整理背景、偏好与项目进度，再把需要的信息导出给 AI。</p>
+<h2>第一次使用</h2><ol><li>从桌面或开始菜单打开 <b>MemoryDeck</b>。</li><li>按 <b>Ctrl+N</b>，选择类别，写下一条清楚的记忆，例如：“教我编程时，每次只给一个步骤，等我反馈后再继续。”</li><li>按 <b>Ctrl+S</b> 保存；用搜索框或类别筛选找回。</li></ol>
+<h2>带到新的 AI 对话</h2><ol><li>打开“数据 → 导出给网页版 AI”，或按 <b>Ctrl+Shift+E</b>。</li><li>检查即将导出的内容，复制到剪贴板。</li><li>在新的 AI 对话中粘贴，再写上本次任务。</li></ol><aside>导出是手动提供上下文，不会自动连接你的 AI 账号，也不等于训练模型。AI 编程工具是否自动读取 AGENTS.md，取决于各工具的配置与加载规则。</aside>
+<h2>记忆保存在哪里？</h2><p>初始目录：<code>%LOCALAPPDATA%\MemoryDeck\Data</code>。把这段路径粘贴到资源管理器地址栏即可打开。通过“数据 → 数据目录”可选择其他目录。</p><ul><li><code>MEMORY.md</code>：完整记忆条目。</li><li><code>AGENTS.md</code>：程序维护的摘要及人工维护的协作偏好。</li><li><code>.memory-deck\backups</code>：程序写入前的自动备份。</li></ul><p>升级安装会保留已有配置和默认目录中的记忆；卸载会保留记忆与目录配置。请定期把自己的数据目录另外备份。</p>
+<h2>常用操作</h2><ul><li>新增 Ctrl+N；保存 Ctrl+S；编辑 Ctrl+E 或双击。</li><li>搜索 Ctrl+F；重新加载 F5；收起或展开详情 Ctrl+D。</li><li>右键条目：查看完整信息、复制、编辑或删除。</li></ul>
+<h2>安装与启动</h2><p>适用于 Windows 10 / 11 x64。此安装版随附微软 .NET 10 桌面运行时，安装时不需要联网下载运行时。请使用桌面或开始菜单中的入口启动，它会选择随附的运行时。直接双击程序目录中的原版 MemoryDeck.exe 仍可能要求系统安装 .NET。</p><p>重新安装或卸载前，请先退出 MemoryDeck。软件未提供数字签名，Windows 可能显示“未知发布者”；请先核实文件来自你信任的发布者。</p><p>若启动失败：重新安装本安装包；若仍失败，把错误截图和 Windows 版本提供给发布者。当前安装包已完成构建与内容校验，仍需在 Windows 电脑上实际验收。</p>
+<h2>使用习惯</h2><p>优先保存稳定偏好、重要决定和当前项目状态；定期修正过期或矛盾的信息。导出前检查内容，不要将密码、密钥等敏感信息粘贴给外部服务。</p>
+<p>运行时来自 <a href="https://dotnet.microsoft.com/zh-cn/download/dotnet/10.0">微软 .NET 官方发布</a>，许可及第三方声明随运行时一并提供。原版应用来自本次提供的 MemoryDeck 1.2.2；安装包装保留其程序文件与图标。</p></main></html>

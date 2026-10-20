@@ -1,0 +1,18 @@
+{
+  "release_date": "2026-10-13",
+  "version": "10.0.13",
+  "files": [
+    {
+      "name": "windowsdesktop-runtime-win-x64.zip",
+      "rid": "win-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.13/windowsdesktop-runtime-10.0.13-win-x64.zip",
+      "hash": "7cd78051b34f12239852e3685de57630aaeca0fd36e6ef3b41df3f256cf45a820377f316696c5e11316f0bb6e4e84e07fa99367e71472623b33c5d07405c4568"
+    },
+    {
+      "name": "dotnet-runtime-win-x64.zip",
+      "rid": "win-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.13/dotnet-runtime-10.0.13-win-x64.zip",
+      "hash": "2b98792ce86adc50899764ad2e4d21bd25cfda5432eeb0b4dfe7944f3ea049f9e0570a8f4aee92314d97cdb5f8b7be1363d501fc5012e680371e607af648ef40"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 # AGENTS.md — 工作区长期记忆
 
-> 本文件由支持 `AGENTS.md` 约定的工具在会话开始时自动加载
-> （Cursor、Claude Code、DeepSeek Harness 等）。
+> 请按所用 AI 工具的配置说明加载此文件；是否自动读取及读取时机取决于该工具。
 > 下面标记区之间的内容由 MemoryDeck 自动维护，手改会被覆盖。
 
 <!-- MEMORY-DECK:SUMMARY:BEGIN -->
